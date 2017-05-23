@@ -347,6 +347,7 @@ pub fn parse_ssh_packet(i: &[u8]) -> IResult<&[u8], (SshPacket, &[u8])> {
     do_parse!(i,
         packet_length: be_u32 >>
         padding_length: be_u8 >>
+        error_if!(padding_length as u32 + 1 > packet_length, Err::Code(ErrorKind::Custom(128))) >>
         payload: flat_map!(
             take!(packet_length - padding_length as u32 - 1),
             switch!(be_u8,

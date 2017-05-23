@@ -1,5 +1,5 @@
 // Public API tests
-use nom::IResult;
+use nom::{IResult,ErrorKind,Err};
 
 use super::ssh::*;
 
@@ -131,5 +131,13 @@ fn test_new_keys() {
     let padding: &[u8] = &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let expected = IResult::Done(b"" as &[u8], (keys, padding));
     let res = parse_ssh_packet(&SERVER_NEW_KEYS);
+    assert_eq!(res, expected);
+}
+
+#[test]
+fn test_invalid_packet0() {
+    let data = b"\x00\x00\x00\x00\x00\x00\x00\x00";
+    let expected = IResult::Error(Err::Code(ErrorKind::Custom(128)));
+    let res = parse_ssh_packet(data);
     assert_eq!(res, expected);
 }

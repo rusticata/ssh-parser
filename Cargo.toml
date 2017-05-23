@@ -1,0 +1,17 @@
+[package]
+name = "ssh-parser"
+version = "0.1.0"
+authors = ["Nicolas Vivet <nicolas@nzx.io>"]
+
+[features]
+integers = ["num-bigint", "num-traits"]
+serialize = ["cookie-factory"]
+
+[dependencies]
+enum_primitive = "0.1"
+nom = "3"
+
+cookie-factory = { git = "https://github.com/nizox/cookie-factory", optional = true }
+
+num-bigint = { version = "0.1", optional = true }
+num-traits = { version = "0.1", optional = true }

@@ -2,6 +2,11 @@
 name = "ssh-parser"
 version = "0.1.0"
 authors = ["Nicolas Vivet <nicolas@nzx.io>"]
+description = "Parser for the SSH protocol"
+license = "LGPL-2.1+"
+homepage = "https://github.com/rusticata/ssh-parser"
+repository = "https://github.com/rusticata/ssh-parser"
+documentation = "https://docs.rs/ssh-parser"
 
 [features]
 integers = ["num-bigint", "num-traits"]

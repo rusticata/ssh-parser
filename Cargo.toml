@@ -14,7 +14,8 @@ serialize = ["cookie-factory"]
 
 [dependencies]
 enum_primitive = "0.1"
-nom = "3"
+nom = { version = "3", features = ["verbose-errors"] }
+rusticata-macros = "0.3.2"
 
 cookie-factory = { version = "0.2", optional = true }
 num-bigint = { version = "0.1", optional = true }

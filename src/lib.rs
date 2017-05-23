@@ -6,6 +6,9 @@
 extern crate enum_primitive;
 
 #[macro_use]
+extern crate rusticata_macros;
+
+#[macro_use]
 extern crate nom;
 
 #[cfg(feature = "serialize")]

@@ -4,7 +4,7 @@
 //! compatible with obsolete version negotiation.
 use std::str;
 
-use nom::{IResult,IError,crlf,not_line_ending,line_ending,be_u8,be_u32};
+use nom::{IResult,IError,ErrorKind,Err,crlf,not_line_ending,line_ending,be_u8,be_u32};
 
 use enum_primitive::FromPrimitive;
 
@@ -130,43 +130,43 @@ named!(parse_packet_key_exchange<SshPacket>, do_parse!(
 
 impl<'a> SshPacketKeyExchange<'a> {
 
-    pub fn get_kex_algs(&self) -> Result<Vec<&str>, IError> {
+    pub fn get_kex_algs(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
         parse_name_list(self.kex_algs).to_full_result()
     }
 
-    pub fn get_server_host_key_algs(&self) -> Result<Vec<&str>, IError> {
+    pub fn get_server_host_key_algs(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
         parse_name_list(self.server_host_key_algs).to_full_result()
     }
 
-    pub fn get_encr_algs_client_to_server(&self) -> Result<Vec<&str>, IError> {
+    pub fn get_encr_algs_client_to_server(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
         parse_name_list(self.encr_algs_client_to_server).to_full_result()
     }
 
-    pub fn get_encr_algs_server_to_client(&self) -> Result<Vec<&str>, IError> {
+    pub fn get_encr_algs_server_to_client(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
         parse_name_list(self.encr_algs_server_to_client).to_full_result()
     }
 
-    pub fn get_mac_algs_client_to_server(&self) -> Result<Vec<&str>, IError> {
+    pub fn get_mac_algs_client_to_server(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
         parse_name_list(self.mac_algs_client_to_server).to_full_result()
     }
 
-    pub fn get_mac_algs_server_to_client(&self) -> Result<Vec<&str>, IError> {
+    pub fn get_mac_algs_server_to_client(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
         parse_name_list(self.mac_algs_server_to_client).to_full_result()
     }
 
-    pub fn get_comp_algs_client_to_server(&self) -> Result<Vec<&str>, IError> {
+    pub fn get_comp_algs_client_to_server(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
         parse_name_list(self.comp_algs_client_to_server).to_full_result()
     }
 
-    pub fn get_comp_algs_server_to_client(&self) -> Result<Vec<&str>, IError> {
+    pub fn get_comp_algs_server_to_client(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
         parse_name_list(self.comp_algs_server_to_client).to_full_result()
     }
 
-    pub fn get_langs_client_to_server(&self) -> Result<Vec<&str>, IError> {
+    pub fn get_langs_client_to_server(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
         parse_name_list(self.langs_client_to_server).to_full_result()
     }
 
-    pub fn get_langs_server_to_client(&self) -> Result<Vec<&str>, IError> {
+    pub fn get_langs_server_to_client(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
         parse_name_list(self.langs_server_to_client).to_full_result()
     }
 
@@ -222,7 +222,7 @@ impl<'a> SshPacketDhReply<'a> {
     /// Parse the ECDSA server signature.
     ///
     /// Defined in [RFC5656 Section 3.1.2](https://tools.ietf.org/html/rfc5656#section-3.1.2).
-    pub fn get_ecdsa_signature(&self) -> Result<(&str, Vec<u8>), IError> {
+    pub fn get_ecdsa_signature(&self) -> Result<(&str, Vec<u8>), IError<&'a [u8]>> {
         let (identifier, blob) = try!(do_parse!(self.signature,
             identifier: map_res!(parse_string, str::from_utf8) >>
             blob: flat_map!(call!(parse_string), pair!(parse_string, parse_string)) >>
@@ -377,7 +377,7 @@ mod tests {
     #[test]
     fn test_empty_name_list() {
         let res = parse_name_list(b"");
-        let expected = IResult::Error(ErrorKind::SeparatedList);
+        let expected = IResult::Error(Err::Position(ErrorKind::SeparatedList, &b""[..]));
         assert_eq!(res, expected);
     }
 

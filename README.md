@@ -1,5 +1,10 @@
 # ssh-parser
 
+[![LICENSE](https://img.shields.io/badge/License-LGPL%20v2.1-blue.svg)](LICENSE)
+[![Build Status](https://travis-ci.org/rusticata/ssh-parser.svg?branch=master)](https://travis-ci.org/rusticata/ssh-parser)
+[![Crates.io Version](https://img.shields.io/crates/v/ssh-parser.svg)](https://crates.io/crates/ssh-parser)
+
+
 ## Overview
 
 This crate provides functions to parse the SSH 2.0 protocol packets. It is also

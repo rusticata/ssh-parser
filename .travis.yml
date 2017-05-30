@@ -5,6 +5,15 @@ matrix:
     - rust: stable
       env:
        - FEATURES=''
+    - rust: stable
+      env:
+       - FEATURES='serialize'
+    - rust: stable
+      env:
+       - FEATURES='integers'
+    - rust: stable
+      env:
+       - FEATURES='serialize,integers'
     - rust: nightly
       env:
        - FEATURES=''

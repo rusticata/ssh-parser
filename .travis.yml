@@ -13,7 +13,7 @@ matrix:
        - FEATURES='integers'
     - rust: stable
       env:
-       - FEATURES='serialize,integers'
+       - FEATURES='serialize integers'
     - rust: nightly
       env:
        - FEATURES=''

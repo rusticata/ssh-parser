@@ -67,7 +67,7 @@ fn is_us_ascii(c: u8) -> bool {
 named!(parse_name<&[u8]>, take_while!(is_us_ascii));
 
 fn parse_name_list(i: &[u8]) -> IResult<&[u8], Vec<&str>> {
-    separated_list!(i, tag!(","), map_res!(parse_name, str::from_utf8))
+    separated_list_complete!(i, tag!(","), map_res!(parse_name, str::from_utf8))
 }
 
 
@@ -376,9 +376,30 @@ mod tests {
     use nom::ErrorKind;
 
     #[test]
+    fn test_name() {
+        let res = parse_name(b"ssh-rsa");
+        let expected = IResult::Done(&b""[..],&b"ssh-rsa"[..]);
+        assert_eq!(res, expected);
+    }
+
+    #[test]
     fn test_empty_name_list() {
         let res = parse_name_list(b"");
         let expected = IResult::Error(Err::Position(ErrorKind::SeparatedList, &b""[..]));
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_one_name_list() {
+        let res = parse_name_list(b"ssh-rsa");
+        let expected = IResult::Done(&b""[..],vec!["ssh-rsa"]);
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_two_names_list() {
+        let res = parse_name_list(b"ssh-rsa,ssh-ecdsa");
+        let expected = IResult::Done(&b""[..],vec!["ssh-rsa","ssh-ecdsa"]);
         assert_eq!(res, expected);
     }
 

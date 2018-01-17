@@ -137,7 +137,7 @@ fn test_new_keys() {
 #[test]
 fn test_invalid_packet0() {
     let data = b"\x00\x00\x00\x00\x00\x00\x00\x00";
-    let expected = IResult::Error(Err::Code(ErrorKind::Custom(128)));
+    let expected = IResult::Error(Err::Position(ErrorKind::Custom(128), &data[5..]));
     let res = parse_ssh_packet(data);
     assert_eq!(res, expected);
 }

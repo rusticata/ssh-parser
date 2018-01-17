@@ -373,7 +373,7 @@ pub fn parse_ssh_packet(i: &[u8]) -> IResult<&[u8], (SshPacket, &[u8])> {
 mod tests {
 
     use super::*;
-    use nom::ErrorKind;
+    use nom::{ErrorKind,Err};
 
     #[test]
     fn test_name() {

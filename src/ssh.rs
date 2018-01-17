@@ -4,7 +4,7 @@
 //! compatible with obsolete version negotiation.
 use std::str;
 
-use nom::{IResult,IError,ErrorKind,Err,crlf,not_line_ending,line_ending,be_u8,be_u32};
+use nom::{IResult,IError,ErrorKind,crlf,not_line_ending,line_ending,be_u8,be_u32};
 
 use enum_primitive::FromPrimitive;
 
@@ -347,7 +347,7 @@ pub fn parse_ssh_packet(i: &[u8]) -> IResult<&[u8], (SshPacket, &[u8])> {
     do_parse!(i,
         packet_length: be_u32 >>
         padding_length: be_u8 >>
-        error_if!(padding_length as u32 + 1 > packet_length, Err::Code(ErrorKind::Custom(128))) >>
+        error_if!(padding_length as u32 + 1 > packet_length, ErrorKind::Custom(128)) >>
         payload: flat_map!(
             take!(packet_length - padding_length as u32 - 1),
             switch!(be_u8,

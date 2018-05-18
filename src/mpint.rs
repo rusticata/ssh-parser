@@ -44,7 +44,7 @@ impl From<u8> for MpUint {
 
 pub fn parse_ssh_mpint(i: &[u8]) -> IResult<&[u8], BigInt> {
     if i.len() == 0 {
-        IResult::Done(i, BigInt::zero())
+        Ok((i, BigInt::zero()))
     } else {
         bits!(i, do_parse!(
             sign: take_bits!(u8, 1) >>
@@ -65,11 +65,11 @@ fn test_positive_mpint() {
         0x41, 0x7d, 0xea, 0x88, 0xe9, 0x90, 0xe3, 0x5a, 0x27, 0xf8, 0x38, 0x09,
         0x01, 0x66, 0x46, 0xd4, 0xdc
     ];
-    let expected = IResult::Done(b"" as &[u8], BigInt::new(Sign::Plus, vec![
+    let expected = Ok((b"" as &[u8], BigInt::new(Sign::Plus, vec![
         1715918044, 4164421889, 2430818855, 2112522473, 865693249, 1265973982,
         987341070, 2754141671, 2560967805, 835187557, 3983033708, 152924524,
         1434161095, 2170538045, 3115761276, 3881380577, 4
-    ]));
+    ])));
     let num = parse_ssh_mpint(&e);
     assert_eq!(num, expected);
 }

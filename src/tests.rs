@@ -1,5 +1,5 @@
 // Public API tests
-use nom::{IResult,ErrorKind,Err};
+use nom::{ErrorKind,Err};
 
 use super::ssh::*;
 
@@ -15,7 +15,7 @@ fn test_identification() {
     let empty: Vec<&[u8]> = vec![];
     let version = SshVersion { proto: b"2.0", software: b"OpenSSH_7.3", comments: None };
 
-    let expected = IResult::Done(b"" as &[u8], (empty, version));
+    let expected = Ok((b"" as &[u8], (empty, version)));
     let res = parse_ssh_identification(&CLIENT_KEY_EXCHANGE[..21]);
     assert_eq!(res, expected);
 }
@@ -26,7 +26,7 @@ fn test_compatibility() {
     let empty: Vec<&[u8]> = vec![];
     let version = SshVersion { proto: b"1.99", software: b"OpenSSH_3.1p1", comments: None };
 
-    let expected = IResult::Done(b"" as &[u8], (empty, version));
+    let expected = Ok((b"" as &[u8], (empty, version)));
     let res = parse_ssh_identification(&SERVER_COMPAT[..23]);
     assert_eq!(res, expected);
 }
@@ -36,7 +36,7 @@ fn test_compatibility() {
 fn test_version_with_comments() {
     let empty: Vec<&[u8]> = vec![];
     let version = SshVersion { proto: b"2.0", software: b"OpenSSH_7.3", comments: Some(b"toto") };
-    let expected = IResult::Done(b"" as &[u8], (empty, version));
+    let expected = Ok((b"" as &[u8], (empty, version)));
     let res = parse_ssh_identification(b"SSH-2.0-OpenSSH_7.3 toto\r\n");
     assert_eq!(res, expected);
 }
@@ -61,7 +61,7 @@ fn test_client_key_exchange() {
     });
     let padding: &[u8] = &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-    let expected = IResult::Done(b"" as &[u8], (key_exchange, padding));
+    let expected = Ok((b"" as &[u8], (key_exchange, padding)));
     let res = parse_ssh_packet(&CLIENT_KEY_EXCHANGE[21..]);
     assert_eq!(res, expected);
 }
@@ -79,7 +79,7 @@ fn test_dh_init() {
     ];
     let dh = SshPacket::DiffieHellmanInit(SshPacketDhInit { e: &e });
     let padding: &[u8] = &[0, 0, 0, 0, 0];
-    let expected = IResult::Done(b"" as &[u8], (dh, padding));
+    let expected = Ok((b"" as &[u8], (dh, padding)));
     let res = parse_ssh_packet(CLIENT_DH_INIT);
     assert_eq!(res, expected);
 }
@@ -119,7 +119,7 @@ fn test_dh_reply() {
     ];
     let dh = SshPacket::DiffieHellmanReply(SshPacketDhReply { pubkey_and_cert: &pubkey, f: &f, signature: &signature });
     let padding: &[u8] = &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    let expected = IResult::Done(b"" as &[u8], (dh, padding));
+    let expected = Ok((b"" as &[u8], (dh, padding)));
     let res = parse_ssh_packet(SERVER_DH_REPLY);
     assert_eq!(res, expected);
 }
@@ -129,7 +129,7 @@ fn test_dh_reply() {
 fn test_new_keys() {
     let keys = SshPacket::NewKeys;
     let padding: &[u8] = &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    let expected = IResult::Done(b"" as &[u8], (keys, padding));
+    let expected = Ok((b"" as &[u8], (keys, padding)));
     let res = parse_ssh_packet(&SERVER_NEW_KEYS);
     assert_eq!(res, expected);
 }
@@ -137,7 +137,7 @@ fn test_new_keys() {
 #[test]
 fn test_invalid_packet0() {
     let data = b"\x00\x00\x00\x00\x00\x00\x00\x00";
-    let expected = IResult::Error(Err::Position(ErrorKind::Custom(128), &data[5..]));
+    let expected = Err(Err::Error(error_position!(&data[5..], ErrorKind::Custom(128))));
     let res = parse_ssh_packet(data);
     assert_eq!(res, expected);
 }

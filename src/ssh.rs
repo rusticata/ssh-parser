@@ -4,7 +4,9 @@
 //! compatible with obsolete version negotiation.
 use std::str;
 
-use nom::{IResult,IError,ErrorKind,crlf,not_line_ending,line_ending,be_u8,be_u32};
+use nom::{Err,IResult,ErrorKind,crlf,not_line_ending,line_ending,be_u8,be_u32};
+use nom::types::CompleteByteSlice;
+use nom;
 
 use enum_primitive::FromPrimitive;
 
@@ -64,10 +66,13 @@ fn is_us_ascii(c: u8) -> bool {
     c >= 0x20 && c <= 0x7e && c != 0x2c
 }
 
-named!(parse_name<&[u8]>, take_while!(is_us_ascii));
+named!(parse_name<CompleteByteSlice, &[u8]>, map!(take_while!(is_us_ascii), |b| b.0));
 
-fn parse_name_list(i: &[u8]) -> IResult<&[u8], Vec<&str>> {
-    separated_list_complete!(i, tag!(","), map_res!(parse_name, str::from_utf8))
+fn parse_name_list<'a>(i: &'a[u8]) -> IResult<&'a[u8], Vec<&str>> {
+    match separated_list_complete!(CompleteByteSlice(i), tag!(","), map_res!(parse_name, str::from_utf8)) {
+        Ok((rem,res)) => Ok((&rem,res)),
+        Err(_)        => Err(Err::Error(error_position!(i, ErrorKind::SeparatedList)))
+    }
 }
 
 
@@ -130,44 +135,44 @@ named!(parse_packet_key_exchange<SshPacket>, do_parse!(
 
 impl<'a> SshPacketKeyExchange<'a> {
 
-    pub fn get_kex_algs(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
-        parse_name_list(self.kex_algs).to_full_result()
+    pub fn get_kex_algs(&self) -> Result<Vec<&str>, nom::Err<&[u8]>> {
+        parse_name_list(self.kex_algs).map(|x| x.1)
     }
 
-    pub fn get_server_host_key_algs(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
-        parse_name_list(self.server_host_key_algs).to_full_result()
+    pub fn get_server_host_key_algs(&self) -> Result<Vec<&str>, nom::Err<&[u8]>> {
+        parse_name_list(self.server_host_key_algs).map(|x| x.1)
     }
 
-    pub fn get_encr_algs_client_to_server(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
-        parse_name_list(self.encr_algs_client_to_server).to_full_result()
+    pub fn get_encr_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<&[u8]>> {
+        parse_name_list(self.encr_algs_client_to_server).map(|x| x.1)
     }
 
-    pub fn get_encr_algs_server_to_client(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
-        parse_name_list(self.encr_algs_server_to_client).to_full_result()
+    pub fn get_encr_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<&'a [u8]>> {
+        parse_name_list(self.encr_algs_server_to_client).map(|x| x.1)
     }
 
-    pub fn get_mac_algs_client_to_server(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
-        parse_name_list(self.mac_algs_client_to_server).to_full_result()
+    pub fn get_mac_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<&'a [u8]>> {
+        parse_name_list(self.mac_algs_client_to_server).map(|x| x.1)
     }
 
-    pub fn get_mac_algs_server_to_client(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
-        parse_name_list(self.mac_algs_server_to_client).to_full_result()
+    pub fn get_mac_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<&'a [u8]>> {
+        parse_name_list(self.mac_algs_server_to_client).map(|x| x.1)
     }
 
-    pub fn get_comp_algs_client_to_server(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
-        parse_name_list(self.comp_algs_client_to_server).to_full_result()
+    pub fn get_comp_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<&'a [u8]>> {
+        parse_name_list(self.comp_algs_client_to_server).map(|x| x.1)
     }
 
-    pub fn get_comp_algs_server_to_client(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
-        parse_name_list(self.comp_algs_server_to_client).to_full_result()
+    pub fn get_comp_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<&'a [u8]>> {
+        parse_name_list(self.comp_algs_server_to_client).map(|x| x.1)
     }
 
-    pub fn get_langs_client_to_server(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
-        parse_name_list(self.langs_client_to_server).to_full_result()
+    pub fn get_langs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<&'a [u8]>> {
+        parse_name_list(self.langs_client_to_server).map(|x| x.1)
     }
 
-    pub fn get_langs_server_to_client(&self) -> Result<Vec<&str>, IError<&'a [u8]>> {
-        parse_name_list(self.langs_server_to_client).to_full_result()
+    pub fn get_langs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<&'a [u8]>> {
+        parse_name_list(self.langs_server_to_client).map(|x| x.1)
     }
 
 }
@@ -222,12 +227,12 @@ impl<'a> SshPacketDhReply<'a> {
     /// Parse the ECDSA server signature.
     ///
     /// Defined in [RFC5656 Section 3.1.2](https://tools.ietf.org/html/rfc5656#section-3.1.2).
-    pub fn get_ecdsa_signature(&self) -> Result<(&str, Vec<u8>), IError<&'a [u8]>> {
-        let (identifier, blob) = try!(do_parse!(self.signature,
+    pub fn get_ecdsa_signature(&self) -> Result<(&str, Vec<u8>), nom::Err<&[u8]>> {
+        let (_,(identifier, blob)) = try!(do_parse!(self.signature,
             identifier: map_res!(parse_string, str::from_utf8) >>
             blob: flat_map!(call!(parse_string), pair!(parse_string, parse_string)) >>
             ( (identifier, blob) )
-        ).to_full_result());
+        ));
 
         let mut rs = Vec::new();
 
@@ -377,29 +382,29 @@ mod tests {
 
     #[test]
     fn test_name() {
-        let res = parse_name(b"ssh-rsa");
-        let expected = IResult::Done(&b""[..],&b"ssh-rsa"[..]);
+        let res = parse_name(CompleteByteSlice(b"ssh-rsa"));
+        let expected = Ok((CompleteByteSlice(&b""[..]),&b"ssh-rsa"[..]));
         assert_eq!(res, expected);
     }
 
     #[test]
     fn test_empty_name_list() {
         let res = parse_name_list(b"");
-        let expected = IResult::Error(Err::Position(ErrorKind::SeparatedList, &b""[..]));
+        let expected = Err(Err::Error(error_position!(&b""[..], ErrorKind::SeparatedList)));
         assert_eq!(res, expected);
     }
 
     #[test]
     fn test_one_name_list() {
         let res = parse_name_list(b"ssh-rsa");
-        let expected = IResult::Done(&b""[..],vec!["ssh-rsa"]);
+        let expected = Ok((&b""[..],vec!["ssh-rsa"]));
         assert_eq!(res, expected);
     }
 
     #[test]
     fn test_two_names_list() {
         let res = parse_name_list(b"ssh-rsa,ssh-ecdsa");
-        let expected = IResult::Done(&b""[..],vec!["ssh-rsa","ssh-ecdsa"]);
+        let expected = Ok((&b""[..],vec!["ssh-rsa","ssh-ecdsa"]));
         assert_eq!(res, expected);
     }
 

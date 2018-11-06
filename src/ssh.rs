@@ -8,8 +8,6 @@ use nom::{Err,IResult,ErrorKind,crlf,not_line_ending,line_ending,be_u8,be_u32};
 use nom::types::CompleteByteSlice;
 use nom;
 
-use enum_primitive::FromPrimitive;
-
 
 /// SSH Protocol Version Exchange
 ///
@@ -255,28 +253,29 @@ pub struct SshPacketDisconnect<'a> {
     pub lang: &'a [u8],
 }
 
-enum_from_primitive! {
 /// SSH Disconnection Message Reason Code
 ///
 /// Defined in [IANA SSH Protocol Parameters](http://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-3).
-#[repr(u32)]
-pub enum SshDisconnectReason {
-    HostNotAllowedToConnect          =   1,
-    ProtocolError                    =   2,
-    KeyExchangeFailed                =   3,
-    Reserved                         =   4,
-    MacError                         =   5,
-    CompressionError                 =   6,
-    ServiceNotAvailable              =   7,
-    ProtocolVersionNotSupported      =   8,
-    HostKeyNotVerifiable             =   9,
-    ConnectionLost                   =  10,
-    ByApplication                    =  11,
-    TooManyConnections               =  12,
-    AuthCancelledByUser              =  13,
-    NoMoreAuthMethodsAvailable       =  14,
-    IllegalUserName                  =  15,
-}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SshDisconnectReason(pub u32);
+
+#[allow(non_upper_case_globals)]
+impl SshDisconnectReason {
+    pub const HostNotAllowedToConnect          : SshDisconnectReason =  SshDisconnectReason( 1);
+    pub const ProtocolError                    : SshDisconnectReason =  SshDisconnectReason( 2);
+    pub const KeyExchangeFailed                : SshDisconnectReason =  SshDisconnectReason( 3);
+    pub const Reserved                         : SshDisconnectReason =  SshDisconnectReason( 4);
+    pub const MacError                         : SshDisconnectReason =  SshDisconnectReason( 5);
+    pub const CompressionError                 : SshDisconnectReason =  SshDisconnectReason( 6);
+    pub const ServiceNotAvailable              : SshDisconnectReason =  SshDisconnectReason( 7);
+    pub const ProtocolVersionNotSupported      : SshDisconnectReason =  SshDisconnectReason( 8);
+    pub const HostKeyNotVerifiable             : SshDisconnectReason =  SshDisconnectReason( 9);
+    pub const ConnectionLost                   : SshDisconnectReason =  SshDisconnectReason(10);
+    pub const ByApplication                    : SshDisconnectReason =  SshDisconnectReason(11);
+    pub const TooManyConnections               : SshDisconnectReason =  SshDisconnectReason(12);
+    pub const AuthCancelledByUser              : SshDisconnectReason =  SshDisconnectReason(13);
+    pub const NoMoreAuthMethodsAvailable       : SshDisconnectReason =  SshDisconnectReason(14);
+    pub const IllegalUserName                  : SshDisconnectReason =  SshDisconnectReason(15);
 }
 
 named!(parse_packet_disconnect<SshPacket>, do_parse!(
@@ -294,8 +293,8 @@ impl<'a> SshPacketDisconnect<'a> {
     }
 
     /// Parse Disconnection Reason Code
-    pub fn get_reason(&self) -> Option<SshDisconnectReason> {
-        SshDisconnectReason::from_u32(self.reason_code)
+    pub fn get_reason(&self) -> SshDisconnectReason {
+        SshDisconnectReason(self.reason_code)
     }
 
 }

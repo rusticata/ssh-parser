@@ -2,8 +2,6 @@
 //!
 //!  The code is available on [GitHub](https://github.com/rusticata/ssh-parser)
 //!  and is part of the [Rusticata](https://github.com/rusticata) project.
-#[macro_use]
-extern crate enum_primitive;
 
 #[macro_use]
 extern crate rusticata_macros;

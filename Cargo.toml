@@ -13,7 +13,6 @@ integers = ["num-bigint", "num-traits"]
 serialize = ["cookie-factory"]
 
 [dependencies]
-enum_primitive = "0.1"
 nom = { version = "^4.0", features = ["verbose-errors"] }
 rusticata-macros = "1.0"
 

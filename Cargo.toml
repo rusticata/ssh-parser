@@ -1,7 +1,7 @@
 [package]
 name = "ssh-parser"
-version = "0.2.0"
-authors = ["Nicolas Vivet <nicolas@nzx.io>"]
+version = "0.3.0"
+authors = ["Nicolas Vivet <nicolas@nzx.io>", "Pierre Chifflier <chifflier@wzdftpd.net>"]
 description = "Parser for the SSH protocol"
 license = "LGPL-2.1+"
 homepage = "https://github.com/rusticata/ssh-parser"

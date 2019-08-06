@@ -46,11 +46,18 @@ pub fn parse_ssh_mpint(i: &[u8]) -> IResult<&[u8], BigInt> {
     if i.len() == 0 {
         Ok((i, BigInt::zero()))
     } else {
-        bits!(i, do_parse!(
-            sign: take_bits!(u8, 1) >>
-            number: take_bits!(MpUint, i.len() * 8 - 1) >>
-            ( BigInt::from_biguint(if sign == 0 { Sign::Plus } else { Sign::Minus }, number.0) )
-        ))
+        do_parse! {
+            i,
+            b: bits!(pair!(
+                    take_bits!(1u8),
+                    take_bits!( (i.len() * 8usize - 1) as usize )
+                    )) >>
+                ({
+                    let sign : u8 = b.0;
+                    let number = MpUint(b.1);
+                    BigInt::from_biguint(if sign == 0 { Sign::Plus } else { Sign::Minus }, number.0)
+                })
+        }
     }
 }
 

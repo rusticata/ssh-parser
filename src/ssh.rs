@@ -4,8 +4,10 @@
 //! compatible with obsolete version negotiation.
 use std::str;
 
-use nom::{Err,IResult,ErrorKind,crlf,not_line_ending,line_ending,be_u8,be_u32};
-use nom::types::CompleteByteSlice;
+use nom::{take_until, Err, IResult};
+use nom::character::streaming::{crlf, line_ending, not_line_ending};
+use nom::error::ErrorKind;
+use nom::number::streaming::{be_u8, be_u32};
 use nom;
 
 
@@ -27,8 +29,9 @@ pub struct SshVersion<'a> {
 // Version exchange terminates with CRLF for SSH 2.0 or LF for compatibility
 // with older versions.
 named!(parse_version<SshVersion>, do_parse!(
-    proto: take_until_and_consume_s!("-") >>
-    software: is_not_s!(" \r\n") >>
+    proto: take_until!("-") >>
+           tag!("-") >>
+    software: is_not!(" \r\n") >>
     comments: opt!(do_parse!(
             tag!(" ") >>
             comments: not_line_ending >>
@@ -46,7 +49,7 @@ named!(parse_version<SshVersion>, do_parse!(
 /// addition of the advertised version of the SSH implementation.
 pub fn parse_ssh_identification(i: &[u8]) -> IResult<&[u8], (Vec<&[u8]>, SshVersion)> {
     many_till!(i,
-        terminated!(take_until_s!("\r\n"), crlf),
+        terminated!(take_until!("\r\n"), crlf),
         delimited!(tag!("SSH-"), parse_version, line_ending)
     )
 }
@@ -64,10 +67,15 @@ fn is_us_ascii(c: u8) -> bool {
     c >= 0x20 && c <= 0x7e && c != 0x2c
 }
 
-named!(parse_name<CompleteByteSlice, &[u8]>, map!(take_while!(is_us_ascii), |b| b.0));
+#[inline]
+fn parse_name(s: &[u8]) -> IResult<&[u8], &[u8]> {
+    use nom::bytes::complete::take_while;
+    take_while(is_us_ascii)(s)
+}
 
 fn parse_name_list<'a>(i: &'a[u8]) -> IResult<&'a[u8], Vec<&str>> {
-    match separated_list_complete!(CompleteByteSlice(i), tag!(","), map_res!(parse_name, str::from_utf8)) {
+    use nom::bytes::complete::tag;
+    match separated_list!(i, tag(","), map_res!(complete!(parse_name), str::from_utf8)) {
         Ok((rem,res)) => Ok((&rem,res)),
         Err(_)        => Err(Err::Error(error_position!(i, ErrorKind::SeparatedList)))
     }
@@ -133,43 +141,43 @@ named!(parse_packet_key_exchange<SshPacket>, do_parse!(
 
 impl<'a> SshPacketKeyExchange<'a> {
 
-    pub fn get_kex_algs(&self) -> Result<Vec<&str>, nom::Err<&[u8]>> {
+    pub fn get_kex_algs(&self) -> Result<Vec<&str>, nom::Err<(&[u8], ErrorKind)>> {
         parse_name_list(self.kex_algs).map(|x| x.1)
     }
 
-    pub fn get_server_host_key_algs(&self) -> Result<Vec<&str>, nom::Err<&[u8]>> {
+    pub fn get_server_host_key_algs(&self) -> Result<Vec<&str>, nom::Err<(&[u8], ErrorKind)>> {
         parse_name_list(self.server_host_key_algs).map(|x| x.1)
     }
 
-    pub fn get_encr_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<&[u8]>> {
+    pub fn get_encr_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<(&[u8], ErrorKind)>> {
         parse_name_list(self.encr_algs_client_to_server).map(|x| x.1)
     }
 
-    pub fn get_encr_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<&'a [u8]>> {
+    pub fn get_encr_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<(&'a [u8], ErrorKind)>> {
         parse_name_list(self.encr_algs_server_to_client).map(|x| x.1)
     }
 
-    pub fn get_mac_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<&'a [u8]>> {
+    pub fn get_mac_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<(&'a [u8], ErrorKind)>> {
         parse_name_list(self.mac_algs_client_to_server).map(|x| x.1)
     }
 
-    pub fn get_mac_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<&'a [u8]>> {
+    pub fn get_mac_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<(&'a [u8], ErrorKind)>> {
         parse_name_list(self.mac_algs_server_to_client).map(|x| x.1)
     }
 
-    pub fn get_comp_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<&'a [u8]>> {
+    pub fn get_comp_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<(&'a [u8], ErrorKind)>> {
         parse_name_list(self.comp_algs_client_to_server).map(|x| x.1)
     }
 
-    pub fn get_comp_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<&'a [u8]>> {
+    pub fn get_comp_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<(&'a [u8], ErrorKind)>> {
         parse_name_list(self.comp_algs_server_to_client).map(|x| x.1)
     }
 
-    pub fn get_langs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<&'a [u8]>> {
+    pub fn get_langs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<(&'a [u8], ErrorKind)>> {
         parse_name_list(self.langs_client_to_server).map(|x| x.1)
     }
 
-    pub fn get_langs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<&'a [u8]>> {
+    pub fn get_langs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<(&'a [u8], ErrorKind)>> {
         parse_name_list(self.langs_server_to_client).map(|x| x.1)
     }
 
@@ -225,7 +233,7 @@ impl<'a> SshPacketDhReply<'a> {
     /// Parse the ECDSA server signature.
     ///
     /// Defined in [RFC5656 Section 3.1.2](https://tools.ietf.org/html/rfc5656#section-3.1.2).
-    pub fn get_ecdsa_signature(&self) -> Result<(&str, Vec<u8>), nom::Err<&[u8]>> {
+    pub fn get_ecdsa_signature(&self) -> Result<(&str, Vec<u8>), nom::Err<(&[u8], ErrorKind)>> {
         let (_,(identifier, blob)) = try!(do_parse!(self.signature,
             identifier: map_res!(parse_string, str::from_utf8) >>
             blob: flat_map!(call!(parse_string), pair!(parse_string, parse_string)) >>
@@ -351,7 +359,7 @@ pub fn parse_ssh_packet(i: &[u8]) -> IResult<&[u8], (SshPacket, &[u8])> {
     do_parse!(i,
         packet_length: be_u32 >>
         padding_length: be_u8 >>
-        error_if!(padding_length as u32 + 1 > packet_length, ErrorKind::Custom(128)) >>
+        error_if!(padding_length as u32 + 1 > packet_length, ErrorKind::LengthValue) >>
         payload: flat_map!(
             take!(packet_length - padding_length as u32 - 1),
             switch!(be_u8,
@@ -377,12 +385,12 @@ pub fn parse_ssh_packet(i: &[u8]) -> IResult<&[u8], (SshPacket, &[u8])> {
 mod tests {
 
     use super::*;
-    use nom::{ErrorKind,Err};
+    use nom::Err;
 
     #[test]
     fn test_name() {
-        let res = parse_name(CompleteByteSlice(b"ssh-rsa"));
-        let expected = Ok((CompleteByteSlice(&b""[..]),&b"ssh-rsa"[..]));
+        let res = parse_name(b"ssh-rsa");
+        let expected = Ok((&b""[..],&b"ssh-rsa"[..]));
         assert_eq!(res, expected);
     }
 

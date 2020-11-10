@@ -6,7 +6,7 @@ use std::str;
 
 use nom::{take_until, Err, IResult};
 use nom::character::streaming::{crlf, line_ending, not_line_ending};
-use nom::error::ErrorKind;
+use nom::error::{Error, ErrorKind};
 use nom::number::streaming::{be_u8, be_u32};
 use nom;
 
@@ -37,7 +37,7 @@ named!(parse_version<SshVersion>, do_parse!(
             comments: not_line_ending >>
             ( comments ))
     ) >>
-    ( SshVersion { proto: proto, software: software, comments: comments } )
+    ( SshVersion { proto, software, comments } )
 ));
 
 
@@ -69,13 +69,13 @@ fn is_us_ascii(c: u8) -> bool {
 
 #[inline]
 fn parse_name(s: &[u8]) -> IResult<&[u8], &[u8]> {
-    use nom::bytes::complete::take_while;
-    take_while(is_us_ascii)(s)
+    use nom::bytes::complete::take_while1;
+    take_while1(is_us_ascii)(s)
 }
 
 fn parse_name_list<'a>(i: &'a[u8]) -> IResult<&'a[u8], Vec<&str>> {
     use nom::bytes::complete::tag;
-    match separated_list!(i, tag(","), map_res!(complete!(parse_name), str::from_utf8)) {
+    match separated_list1!(i, tag(","), map_res!(complete!(parse_name), str::from_utf8)) {
         Ok((rem,res)) => Ok((&rem,res)),
         Err(_)        => Err(Err::Error(error_position!(i, ErrorKind::SeparatedList)))
     }
@@ -123,17 +123,17 @@ named!(parse_packet_key_exchange<SshPacket>, do_parse!(
     first_kex_packet_follows: be_u8 >>
     be_u32 >>
     ( SshPacket::KeyExchange(SshPacketKeyExchange {
-        cookie: cookie,
-        kex_algs: kex_algs,
-        server_host_key_algs: server_host_key_algs,
-        encr_algs_client_to_server: encr_algs_client_to_server,
-        encr_algs_server_to_client: encr_algs_server_to_client,
-        mac_algs_client_to_server: mac_algs_client_to_server,
-        mac_algs_server_to_client: mac_algs_server_to_client,
-        comp_algs_client_to_server: comp_algs_client_to_server,
-        comp_algs_server_to_client: comp_algs_server_to_client,
-        langs_client_to_server: langs_client_to_server,
-        langs_server_to_client: langs_server_to_client,
+        cookie,
+        kex_algs,
+        server_host_key_algs,
+        encr_algs_client_to_server,
+        encr_algs_server_to_client,
+        mac_algs_client_to_server,
+        mac_algs_server_to_client,
+        comp_algs_client_to_server,
+        comp_algs_server_to_client,
+        langs_client_to_server,
+        langs_server_to_client,
         first_kex_packet_follows: first_kex_packet_follows > 0,
     }) )
 ));
@@ -141,43 +141,43 @@ named!(parse_packet_key_exchange<SshPacket>, do_parse!(
 
 impl<'a> SshPacketKeyExchange<'a> {
 
-    pub fn get_kex_algs(&self) -> Result<Vec<&str>, nom::Err<(&[u8], ErrorKind)>> {
+    pub fn get_kex_algs(&self) -> Result<Vec<&str>, nom::Err<Error<&[u8]>>> {
         parse_name_list(self.kex_algs).map(|x| x.1)
     }
 
-    pub fn get_server_host_key_algs(&self) -> Result<Vec<&str>, nom::Err<(&[u8], ErrorKind)>> {
+    pub fn get_server_host_key_algs(&self) -> Result<Vec<&str>, nom::Err<Error<&[u8]>>> {
         parse_name_list(self.server_host_key_algs).map(|x| x.1)
     }
 
-    pub fn get_encr_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<(&[u8], ErrorKind)>> {
+    pub fn get_encr_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<Error<&[u8]>>> {
         parse_name_list(self.encr_algs_client_to_server).map(|x| x.1)
     }
 
-    pub fn get_encr_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<(&'a [u8], ErrorKind)>> {
+    pub fn get_encr_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<Error<&'a [u8]>>> {
         parse_name_list(self.encr_algs_server_to_client).map(|x| x.1)
     }
 
-    pub fn get_mac_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<(&'a [u8], ErrorKind)>> {
+    pub fn get_mac_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<Error<&'a [u8]>>> {
         parse_name_list(self.mac_algs_client_to_server).map(|x| x.1)
     }
 
-    pub fn get_mac_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<(&'a [u8], ErrorKind)>> {
+    pub fn get_mac_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<Error<&'a [u8]>>> {
         parse_name_list(self.mac_algs_server_to_client).map(|x| x.1)
     }
 
-    pub fn get_comp_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<(&'a [u8], ErrorKind)>> {
+    pub fn get_comp_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<Error<&'a [u8]>>> {
         parse_name_list(self.comp_algs_client_to_server).map(|x| x.1)
     }
 
-    pub fn get_comp_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<(&'a [u8], ErrorKind)>> {
+    pub fn get_comp_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<Error<&'a [u8]>>> {
         parse_name_list(self.comp_algs_server_to_client).map(|x| x.1)
     }
 
-    pub fn get_langs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<(&'a [u8], ErrorKind)>> {
+    pub fn get_langs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<Error<&'a [u8]>>> {
         parse_name_list(self.langs_client_to_server).map(|x| x.1)
     }
 
-    pub fn get_langs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<(&'a [u8], ErrorKind)>> {
+    pub fn get_langs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<Error<&'a [u8]>>> {
         parse_name_list(self.langs_server_to_client).map(|x| x.1)
     }
 
@@ -225,7 +225,7 @@ named!(parse_packet_dh_reply<SshPacket>, do_parse!(
     pubkey: parse_string >>
     f: parse_string >>
     signature: parse_string >>
-    ( SshPacket::DiffieHellmanReply(SshPacketDhReply { pubkey_and_cert: pubkey, f: f, signature: signature }) )
+    ( SshPacket::DiffieHellmanReply(SshPacketDhReply { pubkey_and_cert: pubkey, f, signature }) )
 ));
 
 impl<'a> SshPacketDhReply<'a> {
@@ -233,12 +233,12 @@ impl<'a> SshPacketDhReply<'a> {
     /// Parse the ECDSA server signature.
     ///
     /// Defined in [RFC5656 Section 3.1.2](https://tools.ietf.org/html/rfc5656#section-3.1.2).
-    pub fn get_ecdsa_signature(&self) -> Result<(&str, Vec<u8>), nom::Err<(&[u8], ErrorKind)>> {
-        let (_,(identifier, blob)) = try!(do_parse!(self.signature,
+    pub fn get_ecdsa_signature(&self) -> Result<(&str, Vec<u8>), nom::Err<Error<&[u8]>>> {
+        let (_,(identifier, blob)) =do_parse!(self.signature,
             identifier: map_res!(parse_string, str::from_utf8) >>
             blob: flat_map!(call!(parse_string), pair!(parse_string, parse_string)) >>
             ( (identifier, blob) )
-        ));
+        )?;
 
         let mut rs = Vec::new();
 
@@ -290,7 +290,7 @@ named!(parse_packet_disconnect<SshPacket>, do_parse!(
     reason_code: be_u32 >>
     description: parse_string >>
     lang: parse_string >>
-    ( SshPacket::Disconnect(SshPacketDisconnect { reason_code: reason_code, description: description, lang: lang}) )
+    ( SshPacket::Disconnect(SshPacketDisconnect { reason_code, description, lang}) )
 ));
 
 impl<'a> SshPacketDisconnect<'a> {
@@ -322,7 +322,7 @@ named!(parse_packet_debug<SshPacket>, do_parse!(
     display: be_u8 >>
     message: parse_string >>
     lang: parse_string >>
-    ( SshPacket::Debug(SshPacketDebug { always_display: display > 0, message: message, lang: lang}) )
+    ( SshPacket::Debug(SshPacketDebug { always_display: display > 0, message, lang}) )
 ));
 
 impl<'a> SshPacketDebug<'a> {

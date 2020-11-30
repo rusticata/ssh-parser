@@ -18,13 +18,13 @@ extern crate num_bigint;
 #[cfg(feature = "integers")]
 extern crate num_traits;
 
-/// SSH parsing functions
-pub mod ssh;
+#[cfg(feature = "integers")]
+pub mod mpint;
 #[cfg(feature = "serialize")]
 /// SSH packet crafting functions
 pub mod serialize;
-#[cfg(feature = "integers")]
-pub mod mpint;
+/// SSH parsing functions
+pub mod ssh;
 
 #[cfg(test)]
 mod tests;

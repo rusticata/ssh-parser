@@ -1,10 +1,9 @@
-use std::convert::From;
-use std::ops::{AddAssign, Shl, Shr};
-
 use nom::IResult;
-
+use nom::*;
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::identities::Zero;
+use std::convert::From;
+use std::ops::{AddAssign, Shl, Shr};
 
 struct MpUint(BigUint);
 
@@ -37,7 +36,7 @@ impl From<u8> for MpUint {
 }
 
 pub fn parse_ssh_mpint(i: &[u8]) -> IResult<&[u8], BigInt> {
-    if i.len() == 0 {
+    if i.is_empty() {
         Ok((i, BigInt::zero()))
     } else {
         do_parse! {

@@ -1,7 +1,8 @@
-use cookie_factory::{set_be_u32, set_be_u8, GenError};
+use crate::ssh::{
+    SshPacket, SshPacketDebug, SshPacketDhReply, SshPacketDisconnect, SshPacketKeyExchange,
+};
+use cookie_factory::*;
 use std::iter::repeat;
-
-use ssh::{SshPacket, SshPacketDebug, SshPacketDhReply, SshPacketDisconnect, SshPacketKeyExchange};
 
 fn gen_string<'a, 'b>(
     x: (&'a mut [u8], usize),

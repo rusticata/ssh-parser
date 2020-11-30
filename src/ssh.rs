@@ -2,13 +2,15 @@
 //!
 //! This module contains parsing functions for the SSH 2.0 protocol. It is also
 //! compatible with obsolete version negotiation.
-use std::str;
 
 use nom;
 use nom::character::streaming::{crlf, line_ending, not_line_ending};
 use nom::error::{Error, ErrorKind};
 use nom::number::streaming::{be_u32, be_u8};
+use nom::*;
 use nom::{take_until, Err, IResult};
+use rusticata_macros::error_if;
+use std::str;
 
 /// SSH Protocol Version Exchange
 ///

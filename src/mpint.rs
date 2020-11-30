@@ -1,5 +1,7 @@
+use nom::bits::{bits, streaming::take as btake};
+use nom::error::Error;
+use nom::sequence::pair;
 use nom::IResult;
-use nom::*;
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::identities::Zero;
 use std::convert::From;
@@ -39,18 +41,14 @@ pub fn parse_ssh_mpint(i: &[u8]) -> IResult<&[u8], BigInt> {
     if i.is_empty() {
         Ok((i, BigInt::zero()))
     } else {
-        do_parse! {
-            i,
-            b: bits!(pair!(
-                    take_bits!(1u8),
-                    take_bits!( (i.len() * 8usize - 1) as usize )
-                    )) >>
-                ({
-                    let sign : u8 = b.0;
-                    let number = MpUint(b.1);
-                    BigInt::from_biguint(if sign == 0 { Sign::Plus } else { Sign::Minus }, number.0)
-                })
-        }
+        let (i, b) = bits(pair(
+            btake::<_, _, _, Error<_>>(1usize),
+            btake((i.len() * 8usize - 1) as usize),
+        ))(i)?;
+        let sign: u8 = b.0;
+        let number = MpUint(b.1);
+        let bi = BigInt::from_biguint(if sign == 0 { Sign::Plus } else { Sign::Minus }, number.0);
+        Ok((i, bi))
     }
 }
 

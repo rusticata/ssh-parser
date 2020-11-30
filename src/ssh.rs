@@ -3,12 +3,15 @@
 //! This module contains parsing functions for the SSH 2.0 protocol. It is also
 //! compatible with obsolete version negotiation.
 
+use nom::bytes::streaming::{is_not, tag, take, take_until};
 use nom::character::streaming::{crlf, line_ending, not_line_ending};
-use nom::error::{Error, ErrorKind};
+use nom::combinator::{complete, map, map_parser, map_res, opt};
+use nom::error::{make_error, Error, ErrorKind};
+use nom::multi::{length_data, many_till, separated_list1};
 use nom::number::streaming::{be_u32, be_u8};
-use nom::*;
-use nom::{take_until, Err, IResult};
-use rusticata_macros::error_if;
+use nom::sequence::{delimited, pair, terminated};
+use nom::{Err, IResult};
+use rusticata_macros::newtype_enum;
 use std::str;
 
 /// SSH Protocol Version Exchange
@@ -27,23 +30,22 @@ pub struct SshVersion<'a> {
 
 // Version exchange terminates with CRLF for SSH 2.0 or LF for compatibility
 // with older versions.
-named!(
-    parse_version<SshVersion>,
-    do_parse!(
-        proto: take_until!("-")
-            >> tag!("-")
-            >> software: is_not!(" \r\n")
-            >> comments:
-                opt!(do_parse!(
-                    tag!(" ") >> comments: not_line_ending >> (comments)
-                ))
-            >> (SshVersion {
-                proto,
-                software,
-                comments
-            })
-    )
-);
+fn parse_version(i: &[u8]) -> IResult<&[u8], SshVersion> {
+    let (i, proto) = take_until("-")(i)?;
+    let (i, _) = tag("-")(i)?;
+    let (i, software) = is_not(" \r\n")(i)?;
+    let (i, comments) = opt(|d| {
+        let (d, _) = tag(" ")(d)?;
+        let (d, comments) = not_line_ending(d)?;
+        Ok((d, comments))
+    })(i)?;
+    let version = SshVersion {
+        proto,
+        software,
+        comments,
+    };
+    Ok((i, version))
+}
 
 /// Parse the SSH identification phase.
 ///
@@ -52,21 +54,20 @@ named!(
 /// version. This function allocates a vector to store these line slices in
 /// addition of the advertised version of the SSH implementation.
 pub fn parse_ssh_identification(i: &[u8]) -> IResult<&[u8], (Vec<&[u8]>, SshVersion)> {
-    many_till!(
-        i,
-        terminated!(take_until!("\r\n"), crlf),
-        delimited!(tag!("SSH-"), parse_version, line_ending)
-    )
+    many_till(
+        terminated(take_until("\r\n"), crlf),
+        delimited(tag("SSH-"), parse_version, line_ending),
+    )(i)
 }
 
-named!(
-    parse_string<&[u8]>,
-    do_parse!(len: be_u32 >> string: take!(len) >> (string))
-);
+#[inline]
+fn parse_string(i: &[u8]) -> IResult<&[u8], &[u8]> {
+    length_data(be_u32)(i)
+}
 
 // US-ASCII printable characters without comma
 #[inline]
-fn is_us_ascii(c: u8) -> bool {
+const fn is_us_ascii(c: u8) -> bool {
     c >= 0x20 && c <= 0x7e && c != 0x2c
 }
 
@@ -78,9 +79,9 @@ fn parse_name(s: &[u8]) -> IResult<&[u8], &[u8]> {
 
 fn parse_name_list<'a>(i: &'a [u8]) -> IResult<&'a [u8], Vec<&str>> {
     use nom::bytes::complete::tag;
-    match separated_list1!(i, tag(","), map_res!(complete!(parse_name), str::from_utf8)) {
+    match separated_list1(tag(","), map_res(complete(parse_name), str::from_utf8))(i) {
         Ok((rem, res)) => Ok((&rem, res)),
-        Err(_) => Err(Err::Error(error_position!(i, ErrorKind::SeparatedList))),
+        Err(_) => Err(Err::Error(make_error(i, ErrorKind::SeparatedList))),
     }
 }
 
@@ -110,38 +111,36 @@ pub struct SshPacketKeyExchange<'a> {
     pub first_kex_packet_follows: bool,
 }
 
-named!(
-    parse_packet_key_exchange<SshPacket>,
-    do_parse!(
-        cookie: take!(16)
-            >> kex_algs: parse_string
-            >> server_host_key_algs: parse_string
-            >> encr_algs_client_to_server: parse_string
-            >> encr_algs_server_to_client: parse_string
-            >> mac_algs_client_to_server: parse_string
-            >> mac_algs_server_to_client: parse_string
-            >> comp_algs_client_to_server: parse_string
-            >> comp_algs_server_to_client: parse_string
-            >> langs_client_to_server: parse_string
-            >> langs_server_to_client: parse_string
-            >> first_kex_packet_follows: be_u8
-            >> be_u32
-            >> (SshPacket::KeyExchange(SshPacketKeyExchange {
-                cookie,
-                kex_algs,
-                server_host_key_algs,
-                encr_algs_client_to_server,
-                encr_algs_server_to_client,
-                mac_algs_client_to_server,
-                mac_algs_server_to_client,
-                comp_algs_client_to_server,
-                comp_algs_server_to_client,
-                langs_client_to_server,
-                langs_server_to_client,
-                first_kex_packet_follows: first_kex_packet_follows > 0,
-            }))
-    )
-);
+fn parse_packet_key_exchange(i: &[u8]) -> IResult<&[u8], SshPacket> {
+    let (i, cookie) = take(16usize)(i)?;
+    let (i, kex_algs) = parse_string(i)?;
+    let (i, server_host_key_algs) = parse_string(i)?;
+    let (i, encr_algs_client_to_server) = parse_string(i)?;
+    let (i, encr_algs_server_to_client) = parse_string(i)?;
+    let (i, mac_algs_client_to_server) = parse_string(i)?;
+    let (i, mac_algs_server_to_client) = parse_string(i)?;
+    let (i, comp_algs_client_to_server) = parse_string(i)?;
+    let (i, comp_algs_server_to_client) = parse_string(i)?;
+    let (i, langs_client_to_server) = parse_string(i)?;
+    let (i, langs_server_to_client) = parse_string(i)?;
+    let (i, first_kex_packet_follows) = be_u8(i)?;
+    let (i, _) = be_u32(i)?;
+    let packet = SshPacketKeyExchange {
+        cookie,
+        kex_algs,
+        server_host_key_algs,
+        encr_algs_client_to_server,
+        encr_algs_server_to_client,
+        mac_algs_client_to_server,
+        mac_algs_server_to_client,
+        comp_algs_client_to_server,
+        comp_algs_server_to_client,
+        langs_client_to_server,
+        langs_server_to_client,
+        first_kex_packet_follows: first_kex_packet_follows > 0,
+    };
+    Ok((i, SshPacket::KeyExchange(packet)))
+}
 
 impl<'a> SshPacketKeyExchange<'a> {
     pub fn get_kex_algs(&self) -> Result<Vec<&str>, nom::Err<Error<&[u8]>>> {
@@ -203,12 +202,11 @@ pub struct SshPacketDhInit<'a> {
     pub e: &'a [u8],
 }
 
-named!(
-    parse_packet_dh_init<SshPacket>,
-    map!(call!(parse_string), |x| SshPacket::DiffieHellmanInit(
-        SshPacketDhInit { e: x }
-    ))
-);
+fn parse_packet_dh_init(i: &[u8]) -> IResult<&[u8], SshPacket> {
+    map(parse_string, |e| {
+        SshPacket::DiffieHellmanInit(SshPacketDhInit { e })
+    })(i)
+}
 
 /// SSH Key Exchange Server Packet
 ///
@@ -223,19 +221,17 @@ pub struct SshPacketDhReply<'a> {
     pub signature: &'a [u8],
 }
 
-named!(
-    parse_packet_dh_reply<SshPacket>,
-    do_parse!(
-        pubkey: parse_string
-            >> f: parse_string
-            >> signature: parse_string
-            >> (SshPacket::DiffieHellmanReply(SshPacketDhReply {
-                pubkey_and_cert: pubkey,
-                f,
-                signature
-            }))
-    )
-);
+fn parse_packet_dh_reply(i: &[u8]) -> IResult<&[u8], SshPacket> {
+    let (i, pubkey_and_cert) = parse_string(i)?;
+    let (i, f) = parse_string(i)?;
+    let (i, signature) = parse_string(i)?;
+    let reply = SshPacketDhReply {
+        pubkey_and_cert,
+        f,
+        signature,
+    };
+    Ok((i, SshPacket::DiffieHellmanReply(reply)))
+}
 
 impl<'a> SshPacketDhReply<'a> {
     /// Parse the ECDSA server signature.
@@ -243,12 +239,8 @@ impl<'a> SshPacketDhReply<'a> {
     /// Defined in [RFC5656 Section 3.1.2](https://tools.ietf.org/html/rfc5656#section-3.1.2).
     #[allow(clippy::type_complexity)]
     pub fn get_ecdsa_signature(&self) -> Result<(&str, Vec<u8>), nom::Err<Error<&[u8]>>> {
-        let (_, (identifier, blob)) = do_parse!(
-            self.signature,
-            identifier: map_res!(parse_string, str::from_utf8)
-                >> blob: flat_map!(call!(parse_string), pair!(parse_string, parse_string))
-                >> ((identifier, blob))
-        )?;
+        let (i, identifier) = map_res(parse_string, str::from_utf8)(self.signature)?;
+        let (_, blob) = map_parser(parse_string, pair(parse_string, parse_string))(i)?;
 
         let mut rs = Vec::new();
 
@@ -275,38 +267,37 @@ pub struct SshPacketDisconnect<'a> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SshDisconnectReason(pub u32);
 
-#[allow(non_upper_case_globals)]
-impl SshDisconnectReason {
-    pub const HostNotAllowedToConnect: SshDisconnectReason = SshDisconnectReason(1);
-    pub const ProtocolError: SshDisconnectReason = SshDisconnectReason(2);
-    pub const KeyExchangeFailed: SshDisconnectReason = SshDisconnectReason(3);
-    pub const Reserved: SshDisconnectReason = SshDisconnectReason(4);
-    pub const MacError: SshDisconnectReason = SshDisconnectReason(5);
-    pub const CompressionError: SshDisconnectReason = SshDisconnectReason(6);
-    pub const ServiceNotAvailable: SshDisconnectReason = SshDisconnectReason(7);
-    pub const ProtocolVersionNotSupported: SshDisconnectReason = SshDisconnectReason(8);
-    pub const HostKeyNotVerifiable: SshDisconnectReason = SshDisconnectReason(9);
-    pub const ConnectionLost: SshDisconnectReason = SshDisconnectReason(10);
-    pub const ByApplication: SshDisconnectReason = SshDisconnectReason(11);
-    pub const TooManyConnections: SshDisconnectReason = SshDisconnectReason(12);
-    pub const AuthCancelledByUser: SshDisconnectReason = SshDisconnectReason(13);
-    pub const NoMoreAuthMethodsAvailable: SshDisconnectReason = SshDisconnectReason(14);
-    pub const IllegalUserName: SshDisconnectReason = SshDisconnectReason(15);
+newtype_enum! {
+impl display SshDisconnectReason {
+    HostNotAllowedToConnect = 1,
+    ProtocolError = 2,
+    KeyExchangeFailed = 3,
+    Reserved = 4,
+    MacError = 5,
+    CompressionError = 6,
+    ServiceNotAvailable = 7,
+    ProtocolVersionNotSupported = 8,
+    HostKeyNotVerifiable = 9,
+    ConnectionLost = 10,
+    ByApplication = 11,
+    TooManyConnections = 12,
+    AuthCancelledByUser = 13,
+    NoMoreAuthMethodsAvailable = 14,
+    IllegalUserName = 15,
+}
 }
 
-named!(
-    parse_packet_disconnect<SshPacket>,
-    do_parse!(
-        reason_code: be_u32
-            >> description: parse_string
-            >> lang: parse_string
-            >> (SshPacket::Disconnect(SshPacketDisconnect {
-                reason_code,
-                description,
-                lang
-            }))
-    )
-);
+fn parse_packet_disconnect(i: &[u8]) -> IResult<&[u8], SshPacket> {
+    let (i, reason_code) = be_u32(i)?;
+    let (i, description) = parse_string(i)?;
+    let (i, lang) = parse_string(i)?;
+    let packet = SshPacketDisconnect {
+        reason_code,
+        description,
+        lang,
+    };
+    Ok((i, SshPacket::Disconnect(packet)))
+}
 
 impl<'a> SshPacketDisconnect<'a> {
     /// Parse Disconnection Description
@@ -330,19 +321,17 @@ pub struct SshPacketDebug<'a> {
     pub lang: &'a [u8],
 }
 
-named!(
-    parse_packet_debug<SshPacket>,
-    do_parse!(
-        display: be_u8
-            >> message: parse_string
-            >> lang: parse_string
-            >> (SshPacket::Debug(SshPacketDebug {
-                always_display: display > 0,
-                message,
-                lang
-            }))
-    )
-);
+fn parse_packet_debug(i: &[u8]) -> IResult<&[u8], SshPacket> {
+    let (i, display) = be_u8(i)?;
+    let (i, message) = parse_string(i)?;
+    let (i, lang) = parse_string(i)?;
+    let packet = SshPacketDebug {
+        always_display: display > 0,
+        message,
+        lang,
+    };
+    Ok((i, SshPacket::Debug(packet)))
+}
 
 impl<'a> SshPacketDebug<'a> {
     /// Parse Debug Message
@@ -371,33 +360,29 @@ pub enum SshPacket<'a> {
 /// Packet structure is defined in [RFC4253 Section 6](https://tools.ietf.org/html/rfc4253#section-6) and
 /// message codes are defined in [RFC4253 Section 12](https://tools.ietf.org/html/rfc4253#section-12).
 pub fn parse_ssh_packet(i: &[u8]) -> IResult<&[u8], (SshPacket, &[u8])> {
-    do_parse!(
-        i,
-        packet_length: be_u32
-            >> padding_length: be_u8
-            >> error_if!(
-                padding_length as u32 + 1 > packet_length,
-                ErrorKind::LengthValue
-            )
-            >> payload:
-                flat_map!(
-                    take!(packet_length - padding_length as u32 - 1),
-                    switch!(be_u8,
-                        /* SSH_MSG_DISCONNECT       */  1 => call!(parse_packet_disconnect) |
-                        /* SSH_MSG_IGNORE           */  2 => map!(parse_string, |x| SshPacket::Ignore(x)) |
-                        /* SSH_MSG_UNIMPLEMENTED    */  3 => map!(be_u32, |x| SshPacket::Unimplemented(x)) |
-                        /* SSH_MSG_DEBUG            */  4 => call!(parse_packet_debug) |
-                        /* SSH_MSG_SERVICE_REQUEST  */  5 => map!(parse_string, |x| SshPacket::ServiceRequest(x)) |
-                        /* SSH_MSG_SERVICE_ACCEPT   */  6 => map!(parse_string, |x| SshPacket::ServiceAccept(x)) |
-                        /* SSH_MSG_KEXINIT          */ 20 => call!(parse_packet_key_exchange) |
-                        /* SSH_MSG_NEWKEYS          */ 21 => value!(SshPacket::NewKeys) |
-                        /* SSH_MSG_KEXDH_INIT       */ 30 => call!(parse_packet_dh_init) |
-                        /* SSH_MSG_KEXDH_REPLY      */ 31 => call!(parse_packet_dh_reply)
-                    )
-                )
-            >> padding: take!(padding_length)
-            >> ((payload, padding))
-    )
+    let (i, packet_length) = be_u32(i)?;
+    let (i, padding_length) = be_u8(i)?;
+    if padding_length as u32 + 1 > packet_length {
+        return Err(Err::Error(make_error(i, ErrorKind::LengthValue)));
+    }
+    let (i, payload) = map_parser(take(packet_length - padding_length as u32 - 1), |d| {
+        let (d, msg_type) = be_u8(d)?;
+        match msg_type {
+            1 => parse_packet_disconnect(d),
+            2 => map(parse_string, SshPacket::Ignore)(d),
+            3 => map(be_u32, SshPacket::Unimplemented)(d),
+            4 => parse_packet_debug(d),
+            5 => map(parse_string, SshPacket::ServiceRequest)(d),
+            6 => map(parse_string, SshPacket::ServiceAccept)(d),
+            20 => parse_packet_key_exchange(d),
+            21 => Ok((d, SshPacket::NewKeys)),
+            30 => parse_packet_dh_init(d),
+            31 => parse_packet_dh_reply(d),
+            _ => Err(Err::Error(make_error(d, ErrorKind::Switch))),
+        }
+    })(i)?;
+    let (i, padding) = take(padding_length)(i)?;
+    Ok((i, (payload, padding)))
 }
 
 #[cfg(test)]
@@ -416,10 +401,7 @@ mod tests {
     #[test]
     fn test_empty_name_list() {
         let res = parse_name_list(b"");
-        let expected = Err(Err::Error(error_position!(
-            &b""[..],
-            ErrorKind::SeparatedList
-        )));
+        let expected = Err(Err::Error(make_error(&b""[..], ErrorKind::SeparatedList)));
         assert_eq!(res, expected);
     }
 

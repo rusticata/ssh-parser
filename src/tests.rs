@@ -1,5 +1,5 @@
 // Public API tests
-use nom::error::ErrorKind;
+use nom::error::{make_error, ErrorKind};
 use nom::Err;
 
 use super::ssh::*;
@@ -144,10 +144,7 @@ fn test_new_keys() {
 #[test]
 fn test_invalid_packet0() {
     let data = b"\x00\x00\x00\x00\x00\x00\x00\x00";
-    let expected = Err(Err::Error(error_position!(
-        &data[5..],
-        ErrorKind::LengthValue
-    )));
+    let expected = Err(Err::Error(make_error(&data[5..], ErrorKind::LengthValue)));
     let res = parse_ssh_packet(data);
     assert_eq!(res, expected);
 }

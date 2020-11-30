@@ -3,7 +3,6 @@
 //! This module contains parsing functions for the SSH 2.0 protocol. It is also
 //! compatible with obsolete version negotiation.
 
-use nom;
 use nom::character::streaming::{crlf, line_ending, not_line_ending};
 use nom::error::{Error, ErrorKind};
 use nom::number::streaming::{be_u32, be_u8};
@@ -242,6 +241,7 @@ impl<'a> SshPacketDhReply<'a> {
     /// Parse the ECDSA server signature.
     ///
     /// Defined in [RFC5656 Section 3.1.2](https://tools.ietf.org/html/rfc5656#section-3.1.2).
+    #[allow(clippy::type_complexity)]
     pub fn get_ecdsa_signature(&self) -> Result<(&str, Vec<u8>), nom::Err<Error<&[u8]>>> {
         let (_, (identifier, blob)) = do_parse!(
             self.signature,

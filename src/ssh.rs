@@ -68,7 +68,7 @@ fn parse_string(i: &[u8]) -> IResult<&[u8], &[u8]> {
 // US-ASCII printable characters without comma
 #[inline]
 fn is_us_ascii(c: u8) -> bool {
-    c >= 0x20 && c <= 0x7e && c != 0x2c
+    (0x20..=0x7e).contains(&c) && c != 0x2c
 }
 
 #[inline]

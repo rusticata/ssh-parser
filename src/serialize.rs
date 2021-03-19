@@ -1,6 +1,7 @@
 use crate::ssh::{
     SshPacket, SshPacketDebug, SshPacketDhReply, SshPacketDisconnect, SshPacketKeyExchange,
 };
+use cookie_factory::gen::{set_be_u32, set_be_u8};
 use cookie_factory::*;
 use std::iter::repeat;
 
@@ -8,7 +9,7 @@ fn gen_string<'a, 'b>(
     x: (&'a mut [u8], usize),
     s: &'b [u8],
 ) -> Result<(&'a mut [u8], usize), GenError> {
-    do_gen!(x, gen_be_u32!(s.len()) >> gen_slice!(s))
+    do_gen!(x, gen_be_u32!(s.len() as u32) >> gen_slice!(s))
 }
 
 fn gen_packet_key_exchange<'a, 'b>(
@@ -121,6 +122,6 @@ pub fn gen_ssh_packet<'a, 'b>(
             >> gen_packet_payload(p)
             >> pad: gen_many!(repeat(0).take(padding_len(pad - len)), set_be_u8)
             >> end: gen_at_offset!(padlen, gen_be_u8!((end - pad) as u8))
-            >> gen_at_offset!(len, gen_be_u32!(end - padlen))
+            >> gen_at_offset!(len, gen_be_u32!((end - padlen) as u32))
     )
 }

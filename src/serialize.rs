@@ -87,11 +87,11 @@ fn gen_packet_payload<'a, 'b>(
 ) -> Result<(&'a mut [u8], usize), GenError> {
     match *p {
         SshPacket::Disconnect(ref p) => gen_packet_disconnect(x, p),
-        SshPacket::Ignore(ref p) => gen_string(x, p),
+        SshPacket::Ignore(p) => gen_string(x, p),
         SshPacket::Unimplemented(n) => set_be_u32(x, n),
         SshPacket::Debug(ref p) => gen_packet_debug(x, p),
-        SshPacket::ServiceRequest(ref p) => gen_string(x, p),
-        SshPacket::ServiceAccept(ref p) => gen_string(x, p),
+        SshPacket::ServiceRequest(p) => gen_string(x, p),
+        SshPacket::ServiceAccept(p) => gen_string(x, p),
         SshPacket::KeyExchange(ref p) => gen_packet_key_exchange(x, p),
         SshPacket::NewKeys => Ok(x),
         SshPacket::DiffieHellmanInit(ref p) => gen_string(x, p.e),

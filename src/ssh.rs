@@ -80,7 +80,7 @@ fn parse_name(s: &[u8]) -> IResult<&[u8], &[u8]> {
 fn parse_name_list<'a>(i: &'a [u8]) -> IResult<&'a [u8], Vec<&str>> {
     use nom::bytes::complete::tag;
     match separated_list1(tag(","), map_res(complete(parse_name), str::from_utf8))(i) {
-        Ok((rem, res)) => Ok((&rem, res)),
+        Ok((rem, res)) => Ok((rem, res)),
         Err(_) => Err(Err::Error(make_error(i, ErrorKind::SeparatedList))),
     }
 }

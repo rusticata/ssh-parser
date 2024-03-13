@@ -8,6 +8,7 @@ homepage = "https://github.com/rusticata/ssh-parser"
 repository = "https://github.com/rusticata/ssh-parser"
 documentation = "https://docs.rs/ssh-parser"
 edition = "2018"
+rust-version = "1.63"
 
 [features]
 integers = ["num-bigint", "num-traits"]

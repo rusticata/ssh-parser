@@ -4,11 +4,11 @@ use nom::Err;
 
 use super::ssh::*;
 
-static CLIENT_KEY_EXCHANGE: &'static [u8] = include_bytes!("../assets/client_init.raw");
-static CLIENT_DH_INIT: &'static [u8] = include_bytes!("../assets/dh_init.raw");
-static SERVER_DH_REPLY: &'static [u8] = include_bytes!("../assets/dh_reply.raw");
-static SERVER_NEW_KEYS: &'static [u8] = include_bytes!("../assets/new_keys.raw");
-static SERVER_COMPAT: &'static [u8] = include_bytes!("../assets/server_compat.raw");
+static CLIENT_KEY_EXCHANGE: &[u8] = include_bytes!("../assets/client_init.raw");
+static CLIENT_DH_INIT: &[u8] = include_bytes!("../assets/dh_init.raw");
+static SERVER_DH_REPLY: &[u8] = include_bytes!("../assets/dh_reply.raw");
+static SERVER_NEW_KEYS: &[u8] = include_bytes!("../assets/new_keys.raw");
+static SERVER_COMPAT: &[u8] = include_bytes!("../assets/server_compat.raw");
 
 #[test]
 fn test_identification() {
@@ -137,7 +137,7 @@ fn test_new_keys() {
     let keys = SshPacket::NewKeys;
     let padding: &[u8] = &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let expected = Ok((b"" as &[u8], (keys, padding)));
-    let res = parse_ssh_packet(&SERVER_NEW_KEYS);
+    let res = parse_ssh_packet(SERVER_NEW_KEYS);
     assert_eq!(res, expected);
 }
 

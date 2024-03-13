@@ -43,7 +43,7 @@ pub fn parse_ssh_mpint(i: &[u8]) -> IResult<&[u8], BigInt> {
     } else {
         let (i, b) = bits(pair(
             btake::<_, _, _, Error<_>>(1usize),
-            btake((i.len() * 8usize - 1) as usize),
+            btake(i.len() * 8usize - 1),
         ))(i)?;
         let sign: u8 = b.0;
         let number = MpUint(b.1);

@@ -5,16 +5,13 @@ use cookie_factory::gen::{set_be_u32, set_be_u8};
 use cookie_factory::*;
 use std::iter::repeat;
 
-fn gen_string<'a, 'b>(
-    x: (&'a mut [u8], usize),
-    s: &'b [u8],
-) -> Result<(&'a mut [u8], usize), GenError> {
+fn gen_string<'a>(x: (&'a mut [u8], usize), s: &[u8]) -> Result<(&'a mut [u8], usize), GenError> {
     do_gen!(x, gen_be_u32!(s.len() as u32) >> gen_slice!(s))
 }
 
-fn gen_packet_key_exchange<'a, 'b>(
+fn gen_packet_key_exchange<'a>(
     x: (&'a mut [u8], usize),
-    p: &'b SshPacketKeyExchange,
+    p: &SshPacketKeyExchange,
 ) -> Result<(&'a mut [u8], usize), GenError> {
     do_gen!(
         x,
@@ -34,9 +31,9 @@ fn gen_packet_key_exchange<'a, 'b>(
     )
 }
 
-fn gen_packet_dh_reply<'a, 'b>(
+fn gen_packet_dh_reply<'a>(
     x: (&'a mut [u8], usize),
-    p: &'b SshPacketDhReply,
+    p: &SshPacketDhReply,
 ) -> Result<(&'a mut [u8], usize), GenError> {
     do_gen!(
         x,
@@ -44,9 +41,9 @@ fn gen_packet_dh_reply<'a, 'b>(
     )
 }
 
-fn gen_packet_disconnect<'a, 'b>(
+fn gen_packet_disconnect<'a>(
     x: (&'a mut [u8], usize),
-    p: &'b SshPacketDisconnect,
+    p: &SshPacketDisconnect,
 ) -> Result<(&'a mut [u8], usize), GenError> {
     do_gen!(
         x,
@@ -54,9 +51,9 @@ fn gen_packet_disconnect<'a, 'b>(
     )
 }
 
-fn gen_packet_debug<'a, 'b>(
+fn gen_packet_debug<'a>(
     x: (&'a mut [u8], usize),
-    p: &'b SshPacketDebug,
+    p: &SshPacketDebug,
 ) -> Result<(&'a mut [u8], usize), GenError> {
     do_gen!(
         x,
@@ -81,9 +78,9 @@ fn packet_payload_type(p: &SshPacket) -> u8 {
     }
 }
 
-fn gen_packet_payload<'a, 'b>(
+fn gen_packet_payload<'a>(
     x: (&'a mut [u8], usize),
-    p: &'b SshPacket,
+    p: &SshPacket,
 ) -> Result<(&'a mut [u8], usize), GenError> {
     match *p {
         SshPacket::Disconnect(ref p) => gen_packet_disconnect(x, p),
@@ -110,9 +107,9 @@ fn padding_len(payload: usize) -> usize {
 }
 
 /// Serialize an SSH packet from its intermediate representation.
-pub fn gen_ssh_packet<'a, 'b>(
+pub fn gen_ssh_packet<'a>(
     x: (&'a mut [u8], usize),
-    p: &'b SshPacket,
+    p: &SshPacket,
 ) -> Result<(&'a mut [u8], usize), GenError> {
     do_gen!(
         x,

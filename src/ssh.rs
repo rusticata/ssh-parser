@@ -85,6 +85,11 @@ fn parse_name_list(i: &[u8]) -> IResult<&[u8], Vec<&str>> {
     }
 }
 
+/// Return the second component of a pair.
+fn snd<A, B>(tuple: (A, B)) -> B {
+    tuple.1
+}
+
 /// SSH Algorithm Negotiation
 ///
 /// Defined in [RFC4253 section 7.1](https://tools.ietf.org/html/rfc4253#section-7.1).
@@ -144,43 +149,43 @@ fn parse_packet_key_exchange(i: &[u8]) -> IResult<&[u8], SshPacket> {
 
 impl<'a> SshPacketKeyExchange<'a> {
     pub fn get_kex_algs(&self) -> Result<Vec<&str>, nom::Err<Error<&[u8]>>> {
-        parse_name_list(self.kex_algs).map(|x| x.1)
+        parse_name_list(self.kex_algs).map(snd)
     }
 
     pub fn get_server_host_key_algs(&self) -> Result<Vec<&str>, nom::Err<Error<&[u8]>>> {
-        parse_name_list(self.server_host_key_algs).map(|x| x.1)
+        parse_name_list(self.server_host_key_algs).map(snd)
     }
 
     pub fn get_encr_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<Error<&[u8]>>> {
-        parse_name_list(self.encr_algs_client_to_server).map(|x| x.1)
+        parse_name_list(self.encr_algs_client_to_server).map(snd)
     }
 
     pub fn get_encr_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<Error<&'a [u8]>>> {
-        parse_name_list(self.encr_algs_server_to_client).map(|x| x.1)
+        parse_name_list(self.encr_algs_server_to_client).map(snd)
     }
 
     pub fn get_mac_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<Error<&'a [u8]>>> {
-        parse_name_list(self.mac_algs_client_to_server).map(|x| x.1)
+        parse_name_list(self.mac_algs_client_to_server).map(snd)
     }
 
     pub fn get_mac_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<Error<&'a [u8]>>> {
-        parse_name_list(self.mac_algs_server_to_client).map(|x| x.1)
+        parse_name_list(self.mac_algs_server_to_client).map(snd)
     }
 
     pub fn get_comp_algs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<Error<&'a [u8]>>> {
-        parse_name_list(self.comp_algs_client_to_server).map(|x| x.1)
+        parse_name_list(self.comp_algs_client_to_server).map(snd)
     }
 
     pub fn get_comp_algs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<Error<&'a [u8]>>> {
-        parse_name_list(self.comp_algs_server_to_client).map(|x| x.1)
+        parse_name_list(self.comp_algs_server_to_client).map(snd)
     }
 
     pub fn get_langs_client_to_server(&self) -> Result<Vec<&str>, nom::Err<Error<&'a [u8]>>> {
-        parse_name_list(self.langs_client_to_server).map(|x| x.1)
+        parse_name_list(self.langs_client_to_server).map(snd)
     }
 
     pub fn get_langs_server_to_client(&self) -> Result<Vec<&str>, nom::Err<Error<&'a [u8]>>> {
-        parse_name_list(self.langs_server_to_client).map(|x| x.1)
+        parse_name_list(self.langs_server_to_client).map(snd)
     }
 }
 

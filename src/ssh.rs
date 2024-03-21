@@ -5,11 +5,11 @@
 
 use nom::bytes::streaming::{is_not, tag, take, take_until};
 use nom::character::streaming::{crlf, line_ending, not_line_ending};
-use nom::combinator::{complete, map, map_parser, map_res, opt};
+use nom::combinator::{complete, map, map_res, opt};
 use nom::error::{make_error, Error, ErrorKind};
 use nom::multi::{length_data, many_till, separated_list1};
 use nom::number::streaming::{be_u32, be_u8};
-use nom::sequence::{delimited, pair, terminated};
+use nom::sequence::{delimited, terminated};
 use nom::{Err, IResult};
 use rusticata_macros::newtype_enum;
 use std::str;
@@ -61,7 +61,7 @@ pub fn parse_ssh_identification(i: &[u8]) -> IResult<&[u8], (Vec<&[u8]>, SshVers
 }
 
 #[inline]
-fn parse_string(i: &[u8]) -> IResult<&[u8], &[u8]> {
+pub(super) fn parse_string(i: &[u8]) -> IResult<&[u8], &[u8]> {
     length_data(be_u32)(i)
 }
 
@@ -189,73 +189,6 @@ impl<'a> SshPacketKeyExchange<'a> {
     }
 }
 
-/// SSH Key Exchange Client Packet
-///
-/// Defined in [RFC4253 section 8](https://tools.ietf.org/html/rfc4253#section-8) and [errata](https://www.rfc-editor.org/errata_search.php?rfc=4253).
-///
-/// The single field e is left unparsed because its representation depends on
-/// the negotiated key exchange algorithm:
-///
-/// - with a diffie hellman exchange on multiplicative group of integers modulo
-///   p, such as defined in [RFC4253](https://tools.ietf.org/html/rfc4253), the
-///   field is a multiple precision integer (defined in [RFC4251 section 5](https://tools.ietf.org/html/rfc4251#section-5)).
-/// - with a DH on elliptic curves, such as defined in [RFC6239](https://tools.ietf.org/html/rfc6239), the field is an octet string.
-///
-/// TODO: add accessors for the different representations
-#[derive(Debug, Eq, PartialEq)]
-pub struct SshPacketDhInit<'a> {
-    pub e: &'a [u8],
-}
-
-fn parse_packet_dh_init(i: &[u8]) -> IResult<&[u8], SshPacket<'_>> {
-    map(parse_string, |e| {
-        SshPacket::DiffieHellmanInit(SshPacketDhInit { e })
-    })(i)
-}
-
-/// SSH Key Exchange Server Packet
-///
-/// Defined in [RFC4253 section 8](https://tools.ietf.org/html/rfc4253#section-8) and [errata](https://www.rfc-editor.org/errata_search.php?rfc=4253).
-///
-/// Like the client packet, the fields depend on the algorithm negotiated during
-/// the previous packet exchange.
-#[derive(Debug, Eq, PartialEq)]
-pub struct SshPacketDhReply<'a> {
-    pub pubkey_and_cert: &'a [u8],
-    pub f: &'a [u8],
-    pub signature: &'a [u8],
-}
-
-fn parse_packet_dh_reply(i: &[u8]) -> IResult<&[u8], SshPacket<'_>> {
-    let (i, pubkey_and_cert) = parse_string(i)?;
-    let (i, f) = parse_string(i)?;
-    let (i, signature) = parse_string(i)?;
-    let reply = SshPacketDhReply {
-        pubkey_and_cert,
-        f,
-        signature,
-    };
-    Ok((i, SshPacket::DiffieHellmanReply(reply)))
-}
-
-impl<'a> SshPacketDhReply<'a> {
-    /// Parse the ECDSA server signature.
-    ///
-    /// Defined in [RFC5656 Section 3.1.2](https://tools.ietf.org/html/rfc5656#section-3.1.2).
-    #[allow(clippy::type_complexity)]
-    pub fn get_ecdsa_signature(&self) -> Result<(&str, Vec<u8>), nom::Err<Error<&[u8]>>> {
-        let (i, identifier) = map_res(parse_string, str::from_utf8)(self.signature)?;
-        let (_, blob) = map_parser(parse_string, pair(parse_string, parse_string))(i)?;
-
-        let mut rs = Vec::new();
-
-        rs.extend_from_slice(blob.0);
-        rs.extend_from_slice(blob.1);
-
-        Ok((identifier, rs))
-    }
-}
-
 /// SSH Disconnection Message
 ///
 /// Defined in [RFC4253 Section 11.1](https://tools.ietf.org/html/rfc4253#section-11.1).
@@ -345,6 +278,11 @@ impl<'a> SshPacketDebug<'a> {
     }
 }
 
+/// A SSH message that may belong to the KEX stage.
+/// use [`super::SshKEX`] to parse this message.
+#[derive(Debug, Eq, PartialEq)]
+pub struct MaybeDiffieHellmanKEX<'a>(pub SshPacketUnparsed<'a>);
+
 /// SSH Packet Enumeration
 #[derive(Debug, Eq, PartialEq)]
 pub enum SshPacket<'a> {
@@ -356,8 +294,7 @@ pub enum SshPacket<'a> {
     ServiceAccept(&'a [u8]),
     KeyExchange(SshPacketKeyExchange<'a>),
     NewKeys,
-    DiffieHellmanInit(SshPacketDhInit<'a>),
-    DiffieHellmanReply(SshPacketDhReply<'a>),
+    DiffieHellmanKEX(MaybeDiffieHellmanKEX<'a>),
 }
 
 /// Parse a plaintext SSH packet with its padding.
@@ -365,29 +302,60 @@ pub enum SshPacket<'a> {
 /// Packet structure is defined in [RFC4253 Section 6](https://tools.ietf.org/html/rfc4253#section-6) and
 /// message codes are defined in [RFC4253 Section 12](https://tools.ietf.org/html/rfc4253#section-12).
 pub fn parse_ssh_packet(i: &[u8]) -> IResult<&[u8], (SshPacket<'_>, &[u8])> {
+    let (i, unparsed_ssh_packet) = parse_ssh_packet_with_message_code(i)?;
+    let padding = unparsed_ssh_packet.padding;
+    let d = unparsed_ssh_packet.payload;
+    let (_, msg) = match unparsed_ssh_packet.message_code {
+        1 => parse_packet_disconnect(d),
+        2 => map(parse_string, SshPacket::Ignore)(d),
+        3 => map(be_u32, SshPacket::Unimplemented)(d),
+        4 => parse_packet_debug(d),
+        5 => map(parse_string, SshPacket::ServiceRequest)(d),
+        6 => map(parse_string, SshPacket::ServiceAccept)(d),
+        20 => parse_packet_key_exchange(d),
+        21 => Ok((d, SshPacket::NewKeys)),
+        30..=34 => Ok((
+            i,
+            SshPacket::DiffieHellmanKEX(MaybeDiffieHellmanKEX(unparsed_ssh_packet)),
+        )),
+        _ => Err(Err::Error(make_error(d, ErrorKind::Switch))),
+    }?;
+    Ok((i, (msg, padding)))
+}
+
+/// A plaintext SSH packet in raw format, with the message code.
+#[derive(Debug, Eq, PartialEq)]
+pub struct SshPacketUnparsed<'a> {
+    /// The payload, **without** the message code byte.
+    pub payload: &'a [u8],
+
+    /// The padding.
+    pub padding: &'a [u8],
+
+    /// The message code.
+    pub message_code: u8,
+}
+
+/// Parse a plaintext SSH packet header with its message code.
+///
+/// Packet structure is defined in [RFC4253 Section 6](https://tools.ietf.org/html/rfc4253#section-6) and
+pub fn parse_ssh_packet_with_message_code(i: &[u8]) -> IResult<&[u8], SshPacketUnparsed<'_>> {
     let (i, packet_length) = be_u32(i)?;
     let (i, padding_length) = be_u8(i)?;
     if padding_length as u32 + 1 > packet_length {
         return Err(Err::Error(make_error(i, ErrorKind::LengthValue)));
     }
-    let (i, payload) = map_parser(take(packet_length - padding_length as u32 - 1), |d| {
-        let (d, msg_type) = be_u8(d)?;
-        match msg_type {
-            1 => parse_packet_disconnect(d),
-            2 => map(parse_string, SshPacket::Ignore)(d),
-            3 => map(be_u32, SshPacket::Unimplemented)(d),
-            4 => parse_packet_debug(d),
-            5 => map(parse_string, SshPacket::ServiceRequest)(d),
-            6 => map(parse_string, SshPacket::ServiceAccept)(d),
-            20 => parse_packet_key_exchange(d),
-            21 => Ok((d, SshPacket::NewKeys)),
-            30 => parse_packet_dh_init(d),
-            31 => parse_packet_dh_reply(d),
-            _ => Err(Err::Error(make_error(d, ErrorKind::Switch))),
-        }
-    })(i)?;
+    let (i, payload) = take(packet_length - padding_length as u32 - 1)(i)?;
+    let (payload_without_message_code, message_code) = be_u8(payload)?;
     let (i, padding) = take(padding_length)(i)?;
-    Ok((i, (payload, padding)))
+    Ok((
+        i,
+        SshPacketUnparsed {
+            payload: payload_without_message_code,
+            padding,
+            message_code,
+        },
+    ))
 }
 
 #[cfg(test)]

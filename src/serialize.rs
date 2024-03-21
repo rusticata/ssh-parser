@@ -1,6 +1,4 @@
-use crate::ssh::{
-    SshPacket, SshPacketDebug, SshPacketDhReply, SshPacketDisconnect, SshPacketKeyExchange,
-};
+use super::{SshPacket, SshPacketDebug, SshPacketDisconnect, SshPacketKeyExchange};
 use cookie_factory::gen::{set_be_u32, set_be_u8};
 use cookie_factory::*;
 use std::iter::repeat;
@@ -28,16 +26,6 @@ fn gen_packet_key_exchange<'a>(
             >> gen_string(p.langs_server_to_client)
             >> gen_be_u8!(if p.first_kex_packet_follows { 1 } else { 0 })
             >> gen_be_u32!(0)
-    )
-}
-
-fn gen_packet_dh_reply<'a>(
-    x: (&'a mut [u8], usize),
-    p: &SshPacketDhReply,
-) -> Result<(&'a mut [u8], usize), GenError> {
-    do_gen!(
-        x,
-        gen_string(p.pubkey_and_cert) >> gen_string(p.f) >> gen_string(p.signature)
     )
 }
 
@@ -73,8 +61,7 @@ fn packet_payload_type(p: &SshPacket) -> u8 {
         SshPacket::ServiceAccept(_) => 6,
         SshPacket::KeyExchange(_) => 20,
         SshPacket::NewKeys => 21,
-        SshPacket::DiffieHellmanInit(_) => 30,
-        SshPacket::DiffieHellmanReply(_) => 31,
+        SshPacket::DiffieHellmanKEX(ref p) => p.0.message_code,
     }
 }
 
@@ -91,8 +78,7 @@ fn gen_packet_payload<'a>(
         SshPacket::ServiceAccept(p) => gen_string(x, p),
         SshPacket::KeyExchange(ref p) => gen_packet_key_exchange(x, p),
         SshPacket::NewKeys => Ok(x),
-        SshPacket::DiffieHellmanInit(ref p) => gen_string(x, p.e),
-        SshPacket::DiffieHellmanReply(ref p) => gen_packet_dh_reply(x, p),
+        SshPacket::DiffieHellmanKEX(ref p) => gen_string(x, p.0.payload),
     }
 }
 

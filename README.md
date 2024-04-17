@@ -1,7 +1,7 @@
 # ssh-parser
 
 [![LICENSE](https://img.shields.io/badge/License-LGPL%20v2.1-blue.svg)](LICENSE)
-[![Build Status](https://travis-ci.org/rusticata/ssh-parser.svg?branch=master)](https://travis-ci.org/rusticata/ssh-parser)
+[![Build Status](https://github.com/rusticata/ssh-parser/actions/workflows/rust.yml/badge.svg)](https://github.com/rusticata/ssh-parser/actions/workflows/rust.yml)
 [![Crates.io Version](https://img.shields.io/crates/v/ssh-parser.svg)](https://crates.io/crates/ssh-parser)
 
 

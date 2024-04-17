@@ -21,7 +21,7 @@ use std::str;
 /// Unparsed proto and software fields must contain US-ASCII printable
 /// characters only (without space and minus sign). There is no constraint on
 /// the comment field except it must not contain the null byte.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct SshVersion<'a> {
     pub proto: &'a [u8],
     pub software: &'a [u8],
@@ -100,7 +100,7 @@ fn snd<A, B>(tuple: (A, B)) -> B {
 /// the field are accessed though accessors (note that lists can
 /// be successfully extracted at the packet level but accessing them later can
 /// fail with a UTF-8 conversion error).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct SshPacketKeyExchange<'a> {
     pub cookie: &'a [u8],
     pub kex_algs: &'a [u8],
@@ -202,7 +202,7 @@ impl<'a> SshPacketKeyExchange<'a> {
 /// - with a DH on elliptic curves, such as defined in [RFC6239](https://tools.ietf.org/html/rfc6239), the field is an octet string.
 ///
 /// TODO: add accessors for the different representations
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct SshPacketDhInit<'a> {
     pub e: &'a [u8],
 }
@@ -219,7 +219,7 @@ fn parse_packet_dh_init(i: &[u8]) -> IResult<&[u8], SshPacket> {
 ///
 /// Like the client packet, the fields depend on the algorithm negotiated during
 /// the previous packet exchange.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct SshPacketDhReply<'a> {
     pub pubkey_and_cert: &'a [u8],
     pub f: &'a [u8],
@@ -259,7 +259,7 @@ impl<'a> SshPacketDhReply<'a> {
 /// SSH Disconnection Message
 ///
 /// Defined in [RFC4253 Section 11.1](https://tools.ietf.org/html/rfc4253#section-11.1).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct SshPacketDisconnect<'a> {
     pub reason_code: u32,
     pub description: &'a [u8],
@@ -319,7 +319,7 @@ impl<'a> SshPacketDisconnect<'a> {
 /// SSH Debug Message
 ///
 /// Defined in [RFC4253 Section 11.3](https://tools.ietf.org/html/rfc4253#section-11.3).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct SshPacketDebug<'a> {
     pub always_display: bool,
     pub message: &'a [u8],
@@ -346,7 +346,7 @@ impl<'a> SshPacketDebug<'a> {
 }
 
 /// SSH Packet Enumeration
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum SshPacket<'a> {
     Disconnect(SshPacketDisconnect<'a>),
     Ignore(&'a [u8]),

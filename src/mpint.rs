@@ -4,7 +4,6 @@ use nom::sequence::pair;
 use nom::IResult;
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::identities::Zero;
-use std::convert::From;
 use std::ops::{AddAssign, Shl, Shr};
 
 struct MpUint(BigUint);

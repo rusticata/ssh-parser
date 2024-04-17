@@ -21,3 +21,9 @@ rusticata-macros = "4.0"
 cookie-factory = { version = "0.3", optional = true }
 num-bigint = { version = "0.4", optional = true }
 num-traits = { version = "0.2", optional = true }
+
+[package.metadata.cargo_check_external_types]
+allowed_external_types = [
+    "nom",
+    "nom::*",
+]

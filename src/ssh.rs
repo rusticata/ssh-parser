@@ -30,7 +30,7 @@ pub struct SshVersion<'a> {
 
 // Version exchange terminates with CRLF for SSH 2.0 or LF for compatibility
 // with older versions.
-fn parse_version(i: &[u8]) -> IResult<&[u8], SshVersion> {
+fn parse_version(i: &[u8]) -> IResult<&[u8], SshVersion<'_>> {
     let (i, proto) = take_until("-")(i)?;
     let (i, _) = tag("-")(i)?;
     let (i, software) = is_not(" \r\n")(i)?;
@@ -53,7 +53,7 @@ fn parse_version(i: &[u8]) -> IResult<&[u8], SshVersion> {
 /// UTF-8 lines before the final identification line containing the server
 /// version. This function allocates a vector to store these line slices in
 /// addition of the advertised version of the SSH implementation.
-pub fn parse_ssh_identification(i: &[u8]) -> IResult<&[u8], (Vec<&[u8]>, SshVersion)> {
+pub fn parse_ssh_identification(i: &[u8]) -> IResult<&[u8], (Vec<&[u8]>, SshVersion<'_>)> {
     many_till(
         terminated(take_until("\r\n"), crlf),
         delimited(tag("SSH-"), parse_version, line_ending),
@@ -116,7 +116,7 @@ pub struct SshPacketKeyExchange<'a> {
     pub first_kex_packet_follows: bool,
 }
 
-fn parse_packet_key_exchange(i: &[u8]) -> IResult<&[u8], SshPacket> {
+fn parse_packet_key_exchange(i: &[u8]) -> IResult<&[u8], SshPacket<'_>> {
     let (i, cookie) = take(16usize)(i)?;
     let (i, kex_algs) = parse_string(i)?;
     let (i, server_host_key_algs) = parse_string(i)?;
@@ -207,7 +207,7 @@ pub struct SshPacketDhInit<'a> {
     pub e: &'a [u8],
 }
 
-fn parse_packet_dh_init(i: &[u8]) -> IResult<&[u8], SshPacket> {
+fn parse_packet_dh_init(i: &[u8]) -> IResult<&[u8], SshPacket<'_>> {
     map(parse_string, |e| {
         SshPacket::DiffieHellmanInit(SshPacketDhInit { e })
     })(i)
@@ -226,7 +226,7 @@ pub struct SshPacketDhReply<'a> {
     pub signature: &'a [u8],
 }
 
-fn parse_packet_dh_reply(i: &[u8]) -> IResult<&[u8], SshPacket> {
+fn parse_packet_dh_reply(i: &[u8]) -> IResult<&[u8], SshPacket<'_>> {
     let (i, pubkey_and_cert) = parse_string(i)?;
     let (i, f) = parse_string(i)?;
     let (i, signature) = parse_string(i)?;
@@ -292,7 +292,7 @@ impl display SshDisconnectReason {
 }
 }
 
-fn parse_packet_disconnect(i: &[u8]) -> IResult<&[u8], SshPacket> {
+fn parse_packet_disconnect(i: &[u8]) -> IResult<&[u8], SshPacket<'_>> {
     let (i, reason_code) = be_u32(i)?;
     let (i, description) = parse_string(i)?;
     let (i, lang) = parse_string(i)?;
@@ -326,7 +326,7 @@ pub struct SshPacketDebug<'a> {
     pub lang: &'a [u8],
 }
 
-fn parse_packet_debug(i: &[u8]) -> IResult<&[u8], SshPacket> {
+fn parse_packet_debug(i: &[u8]) -> IResult<&[u8], SshPacket<'_>> {
     let (i, display) = be_u8(i)?;
     let (i, message) = parse_string(i)?;
     let (i, lang) = parse_string(i)?;
@@ -364,7 +364,7 @@ pub enum SshPacket<'a> {
 ///
 /// Packet structure is defined in [RFC4253 Section 6](https://tools.ietf.org/html/rfc4253#section-6) and
 /// message codes are defined in [RFC4253 Section 12](https://tools.ietf.org/html/rfc4253#section-12).
-pub fn parse_ssh_packet(i: &[u8]) -> IResult<&[u8], (SshPacket, &[u8])> {
+pub fn parse_ssh_packet(i: &[u8]) -> IResult<&[u8], (SshPacket<'_>, &[u8])> {
     let (i, packet_length) = be_u32(i)?;
     let (i, padding_length) = be_u8(i)?;
     if padding_length as u32 + 1 > packet_length {

@@ -1,6 +1,6 @@
 [package]
 name = "ssh-parser"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Nicolas Vivet <nicolas@nzx.io>", "Pierre Chifflier <chifflier@wzdftpd.net>"]
 description = "Parser for the SSH protocol"
 license = "MIT OR Apache-2.0"

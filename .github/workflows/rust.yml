@@ -30,7 +30,8 @@ jobs:
           - nightly
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@master
+      - name: Install ${{ matrix.rust }} toolchain
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
       - name: Cargo update
@@ -58,7 +59,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install stable rustfmt
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
@@ -68,7 +70,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install nightly clippy
+        uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy
       - run: cargo clippy -- -D warnings
@@ -80,7 +83,8 @@ jobs:
       RUSTDOCFLAGS: --cfg docsrs
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install nightly rust
+        uses: dtolnay/rust-toolchain@nightly
       - run: cargo doc --workspace --no-deps --all-features
 
   semver:

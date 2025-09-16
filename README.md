@@ -1,9 +1,9 @@
-# ssh-parser
-
+![Maintenance](https://img.shields.io/badge/maintenance-activly--developed-brightgreen.svg)
 [![LICENSE](https://img.shields.io/badge/License-LGPL%20v2.1-blue.svg)](LICENSE)
 [![Build Status](https://github.com/rusticata/ssh-parser/actions/workflows/rust.yml/badge.svg)](https://github.com/rusticata/ssh-parser/actions/workflows/rust.yml)
 [![Crates.io Version](https://img.shields.io/crates/v/ssh-parser.svg)](https://crates.io/crates/ssh-parser)
 
+# ssh-parser
 
 ## Overview
 

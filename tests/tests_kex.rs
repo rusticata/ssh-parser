@@ -179,6 +179,85 @@ mod dh_kex_gex {
     }
 }
 
+mod kex_hybrid_oqs {
+    use std::fs;
+    use std::path::Path;
+
+    use super::*;
+
+    /// Path to assets.
+    const ASSETS_PATH: &str = "assets/kex/kex-hybrid";
+
+    fn read_test_file(directory: &Path, filename: &str) -> &'static [u8] {
+        let data = Box::new(fs::read(directory.join(filename)).unwrap());
+        Box::leak(data)
+    }
+
+    /// Tests an hybrid algorithm with a directory containing its assets.
+    fn test_alg_with_directory(directory: impl AsRef<Path>, expected_algorithm: impl AsRef<str>) {
+        let directory = Path::new(ASSETS_PATH).join(directory);
+        println!("dir={}", directory.display());
+        let client_kex_init = read_test_file(&directory, "client_kex_init.raw");
+        let server_kex_init = read_test_file(&directory, "server_kex_init.raw");
+
+        let init_msg = fs::read(directory.join("init.raw")).unwrap();
+        let reply_msg = fs::read(directory.join("reply.raw")).unwrap();
+
+        let (client_kex, server_kex) =
+            load_client_server_key_exchange_init(client_kex_init, server_kex_init);
+
+        let (mut kex, negotiated_alg) = SshKEX::init(&client_kex, &server_kex).unwrap();
+        assert_eq!(negotiated_alg, expected_algorithm.as_ref());
+        assert!(matches!(kex, SshKEX::HybridKEX(_)));
+
+        let init_packet = load_kex_packet(&init_msg);
+        assert!(matches!(kex.parse_ssh_packet(&init_packet), Ok(())));
+        assert!(matches!(
+            kex.parse_ssh_packet(&init_packet),
+            Err(SshKEXError::DuplicatedMessage)
+        ));
+
+        let reply_packet = load_kex_packet(&reply_msg);
+        assert!(matches!(kex.parse_ssh_packet(&reply_packet), Ok(())));
+        assert!(matches!(
+            kex.parse_ssh_packet(&reply_packet),
+            Err(SshKEXError::DuplicatedMessage)
+        ));
+
+        let kex = match kex {
+            SshKEX::HybridKEX(kex) => kex,
+            _ => unreachable!(),
+        };
+
+        assert!(kex.init.is_some());
+        assert!(kex.reply.is_some());
+    }
+
+    #[test]
+    fn ecdh_nistp256_kyber_512r3_sha256_d00_openquantumsafe_org_test() {
+        test_alg_with_directory(
+            "ecdh-nistp256-kyber-512r3-sha256-d00",
+            "ecdh-nistp256-kyber-512r3-sha256-d00@openquantumsafe.org",
+        );
+    }
+
+    #[test]
+    fn ecdh_nistp384_kyber_768r3_sha384_d00_openquantumsafe_org_test() {
+        test_alg_with_directory(
+            "ecdh-nistp384-kyber-768r3-sha384-d00",
+            "ecdh-nistp384-kyber-768r3-sha384-d00@openquantumsafe.org",
+        );
+    }
+
+    #[test]
+    fn ecdh_nistp521_kyber_1024r3_sha512_d00_openquantumsafe_org_test() {
+        test_alg_with_directory(
+            "ecdh-nistp521-kyber-1024r3-sha512-d00",
+            "ecdh-nistp521-kyber-1024r3-sha512-d00@openquantumsafe.org",
+        );
+    }
+}
+
 mod kex_algorithm_negociation {
     use super::ssh_kex_negociate_algorithm;
 

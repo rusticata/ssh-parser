@@ -14,7 +14,8 @@
 #[cfg(feature = "integers")]
 use std::marker::PhantomData;
 
-use nom::combinator::{all_consuming, map};
+use nom::bytes::complete::take;
+use nom::combinator::{all_consuming, map, map_parser, rest};
 use nom::error::Error;
 use nom::number::streaming::be_u32;
 use nom::sequence::{pair, tuple};
@@ -62,9 +63,50 @@ pub const SSH_MSG_KEX_DH_GEX_INIT: u8 = 32;
 /// Defined in [RFC4419 section 5](https://datatracker.ietf.org/doc/html/rfc4419#section-5).
 pub const SSH_MSG_KEX_DH_GEX_REPLY: u8 = 33;
 
+/// PQ/T Hybrid Key Exchange Init message code.
+/// Defined in [draft RFC `draft-kampanakis-curdle-ssh-pq-ke-02` section 2.2](https://www.ietf.org/archive/id/draft-kampanakis-curdle-ssh-pq-ke-02.html#section-2.2)
+pub const SSH_MSG_KEX_HYBRID_INIT: u8 = 30;
+
+/// PQ/T Hybrid Key Exchange Reply message code.
+/// Defined in [draft RFC `draft-kampanakis-curdle-ssh-pq-ke-02` section 2.2](https://www.ietf.org/archive/id/draft-kampanakis-curdle-ssh-pq-ke-02.html#section-2.2)
+pub const SSH_MSG_KEX_HYBRID_REPLY: u8 = 31;
+
+/// Supported PQ/T Hybrid Key Exchange algorithm.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum SupportedHybridKEXAlgorithm {
+    /// ecdh-nistp256-kyber-512r3-sha256-d00@openquantumsafe.org
+    ECDHNistP256Kyber512r3Sha256D00OQS,
+
+    /// ecdh-nistp384-kyber-768r3-sha384-d00@openquantumsafe.org
+    ECDHNistP384Kyber768r3Sha384D00OQS,
+
+    /// ecdh-nistp521-kyber-1024r3-sha512-d00@openquantumsafe.org
+    ECDHNistP521Kyber1024r3Sha512D00OQS,
+}
+
+impl SupportedHybridKEXAlgorithm {
+    /// Returns the length in bytes of the post-quantum KEM public key.
+    pub fn pq_pub_key_len(self) -> usize {
+        match self {
+            Self::ECDHNistP256Kyber512r3Sha256D00OQS => 800,
+            Self::ECDHNistP384Kyber768r3Sha384D00OQS => 1184,
+            Self::ECDHNistP521Kyber1024r3Sha512D00OQS => 1568,
+        }
+    }
+
+    /// Returns the length in bytes of the ciphertext produced by the KEM algorithm.
+    pub fn pq_ciphertext_len(self) -> usize {
+        match self {
+            Self::ECDHNistP256Kyber512r3Sha256D00OQS => 768,
+            Self::ECDHNistP384Kyber768r3Sha384D00OQS => 1088,
+            Self::ECDHNistP521Kyber1024r3Sha512D00OQS => 1568,
+        }
+    }
+}
+
 #[cfg(feature = "integers")]
 fn parse_mpint(i: &[u8]) -> IResult<&[u8], BigInt> {
-    nom::combinator::map_parser(parse_string, crate::mpint::parse_ssh_mpint)(i)
+    map_parser(parse_string, crate::mpint::parse_ssh_mpint)(i)
 }
 
 #[cfg(not(feature = "integers"))]
@@ -507,6 +549,100 @@ pub struct SshKEXDiffieHellmanKEXGEX<'a> {
     pub reply: Option<SshPacketDhKEXGEXReply<'a>>,
 }
 
+/// SSH Hybrid Key Exchange init.
+///
+/// The message code is `SSH_MSG_KEX_HYBRID_INIT`, defined in
+/// [draft RFC `draft-kampanakis-curdle-ssh-pq-ke-02` section 2.2](https://www.ietf.org/archive/id/draft-kampanakis-curdle-ssh-pq-ke-02.html#section-2.2)
+#[derive(Debug, PartialEq)]
+pub struct SshPacketHybridKEXInit<'a> {
+    /// The post-quantum KEM's public key (`C_PK2`).
+    pub pq_pub_key: &'a [u8],
+
+    /// The traditional / classical KEX public key.
+    pub classical_pub_key: &'a [u8],
+}
+
+impl<'a> SshPacketHybridKEXInit<'a> {
+    /// Parses a SSH PQ/T Hybrid Key Exchange Init.
+    pub fn parse(i: &'a [u8], alg: SupportedHybridKEXAlgorithm) -> IResult<&'a [u8], Self> {
+        let pq_len = alg.pq_pub_key_len();
+        let (i, (pq_pub_key, classical_pub_key)) =
+            map_parser(parse_string, tuple((take(pq_len), rest)))(i)?;
+        Ok((
+            i,
+            Self {
+                pq_pub_key,
+                classical_pub_key,
+            },
+        ))
+    }
+}
+
+/// SSH Hybrid Key Exchange reply.
+///
+/// The message code is `SSH_MSG_KEX_HYBRID_REPLY`, defined in
+/// [draft RFC `draft-kampanakis-curdle-ssh-pq-ke-02` section 2.2](https://www.ietf.org/archive/id/draft-kampanakis-curdle-ssh-pq-ke-02.html#section-2.2)
+#[derive(Debug, PartialEq)]
+pub struct SshPacketHybridKEXReply<'a> {
+    /// K_S, server's public host key.
+    pub pubkey_and_cert: &'a [u8],
+
+    /// S_CT2, the ciphertext 'ct' output of the corresponding KEM's 'Encaps' algorithm.
+    pub pq_ciphertext: &'a [u8],
+
+    /// S_PK1, ephemeral (EC)DH server public key.
+    pub classical_pub_key: &'a [u8],
+
+    /// Signature.
+    pub signature: &'a [u8],
+}
+
+impl<'a> SshPacketHybridKEXReply<'a> {
+    /// Parses a SSH PQ/T Hybrid Key Exchange reply.
+    pub fn parse(i: &'a [u8], alg: SupportedHybridKEXAlgorithm) -> IResult<&'a [u8], Self> {
+        let ct_len = alg.pq_ciphertext_len();
+        let (i, (pubkey_and_cert, (pq_ciphertext, classical_pub_key), signature)) = tuple((
+            parse_string,
+            map_parser(parse_string, tuple((take(ct_len), rest))),
+            parse_string,
+        ))(i)?;
+        Ok((
+            i,
+            Self {
+                pubkey_and_cert,
+                pq_ciphertext,
+                classical_pub_key,
+                signature,
+            },
+        ))
+    }
+}
+
+/// The key exchange protocol using PQ/T Key Exchange, defined in
+/// [draft RFC `draft-kampanakis-curdle-ssh-pq-ke-02`](https://www.ietf.org/archive/id/draft-kampanakis-curdle-ssh-pq-ke-02.html).
+#[derive(Debug, PartialEq)]
+pub struct SshHybridKEX<'a> {
+    /// The init message, i.e. `SSH_MSG_KEX_HYBRID_INIT`.
+    pub init: Option<SshPacketHybridKEXInit<'a>>,
+
+    /// The reply message, i.e. `SSH_MSG_KEX_HYBRID_REPLY`.
+    pub reply: Option<SshPacketHybridKEXReply<'a>>,
+
+    /// The algorithm.
+    pub alg: SupportedHybridKEXAlgorithm,
+}
+
+impl SshHybridKEX<'_> {
+    /// Initializes a new [`SshHybridKEX`] using the given algorithm.
+    pub fn new(alg: SupportedHybridKEXAlgorithm) -> Self {
+        Self {
+            init: None,
+            reply: None,
+            alg,
+        }
+    }
+}
+
 /// An error occurring in the KEX parser.
 #[derive(Debug)]
 pub enum SshKEXError<'a> {
@@ -575,6 +711,23 @@ macro_rules! parse_match_and_assign {
     };
 }
 
+/// Parses a hybrid KEX message, matches its owner and assign the parsed
+/// object to it.
+///
+/// We use a macro here because we take a field of `SshHybridKEX` as a parameter
+/// (the receiver).
+macro_rules! parse_match_and_assign_hybrid {
+    ($variant:ident, $field:ident, $struct:ident, $payload:ident) => {
+        if $variant.$field.is_some() {
+            Err(SshKEXError::DuplicatedMessage)
+        } else {
+            let alg = $variant.alg;
+            $variant.$field = Some(all_consuming(|i| $struct::parse(i, alg))($payload)?.1);
+            Ok(())
+        }
+    };
+}
+
 /// Negociates the KEX algorithm.
 pub fn ssh_kex_negociate_algorithm<'a, 'b, 'c, S1, S2>(
     client_kex_algs: impl IntoIterator<Item = &'b S1>,
@@ -607,6 +760,10 @@ pub enum SshKEX<'a> {
 
     /// Diffie Hellman Group and Key, defined in RFC4419.
     DiffieHellmanKEXGEX(SshKEXDiffieHellmanKEXGEX<'a>),
+
+    /// PQ/T Hybrid Key Exchange, defined in
+    /// [draft RFC `draft-kampanakis-curdle-ssh-pq-ke-02`](https://www.ietf.org/archive/id/draft-kampanakis-curdle-ssh-pq-ke-02.html).
+    HybridKEX(SshHybridKEX<'a>),
 }
 
 impl<'a> SshKEX<'a> {
@@ -642,6 +799,15 @@ impl<'a> SshKEX<'a> {
             "diffie-hellman-group-exchange-sha1" | "diffie-hellman-group-exchange-sha256" => Ok(
                 Self::DiffieHellmanKEXGEX(SshKEXDiffieHellmanKEXGEX::default()),
             ),
+            "ecdh-nistp256-kyber-512r3-sha256-d00@openquantumsafe.org" => Ok(Self::HybridKEX(
+                SshHybridKEX::new(SupportedHybridKEXAlgorithm::ECDHNistP256Kyber512r3Sha256D00OQS),
+            )),
+            "ecdh-nistp384-kyber-768r3-sha384-d00@openquantumsafe.org" => Ok(Self::HybridKEX(
+                SshHybridKEX::new(SupportedHybridKEXAlgorithm::ECDHNistP384Kyber768r3Sha384D00OQS),
+            )),
+            "ecdh-nistp521-kyber-1024r3-sha512-d00@openquantumsafe.org" => Ok(Self::HybridKEX(
+                SshHybridKEX::new(SupportedHybridKEXAlgorithm::ECDHNistP521Kyber1024r3Sha512D00OQS),
+            )),
             _ => Err(SshKEXError::UnknownProtocol),
         }
         .map(|kex| (kex, negociated_alg))
@@ -692,6 +858,15 @@ impl<'a> SshKEX<'a> {
                 }
                 SSH_MSG_KEX_DH_GEX_REPLY => {
                     parse_match_and_assign!(dh, reply, SshPacketDhKEXGEXReply, payload)
+                }
+                _ => Err(SshKEXError::UnexpectedMessage),
+            },
+            Self::HybridKEX(hk) => match unparsed_ssh_packet.message_code {
+                SSH_MSG_KEX_HYBRID_INIT => {
+                    parse_match_and_assign_hybrid!(hk, init, SshPacketHybridKEXInit, payload)
+                }
+                SSH_MSG_KEX_HYBRID_REPLY => {
+                    parse_match_and_assign_hybrid!(hk, reply, SshPacketHybridKEXReply, payload)
                 }
                 _ => Err(SshKEXError::UnexpectedMessage),
             },

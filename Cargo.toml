@@ -15,7 +15,7 @@ integers = ["num-bigint", "num-traits"]
 serialize = ["cookie-factory"]
 
 [dependencies]
-nom = "7.0"
+nom = "8.0"
 rusticata-macros = "4.0"
 
 cookie-factory = { version = "0.3", optional = true }

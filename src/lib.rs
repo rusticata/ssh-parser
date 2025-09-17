@@ -16,6 +16,7 @@ pub use kex::{
     SshKEXDiffieHellmanKEXGEX, SshKEXECDiffieHellman, SshKEXError, SshPacketDHKEXInit,
     SshPacketDHKEXReply, SshPacketDhKEXGEXGroup, SshPacketDhKEXGEXInit, SshPacketDhKEXGEXReply,
     SshPacketDhKEXGEXRequest, SshPacketDhKEXGEXRequestOld, SshPacketECDHKEXInit,
-    SshPacketECDHKEXReply,
+    SshPacketECDHKEXReply, SshPacketHybridKEXInit, SshPacketHybridKEXReply,
+    SupportedHybridKEXAlgorithm,
 };
 pub use ssh::*;
